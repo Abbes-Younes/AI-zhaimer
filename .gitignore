@@ -1,0 +1,22 @@
+# raw MRI data (large, not versioned)
+data/bids/
+
+# FreeSurfer outputs (large, not versioned)
+freesurfer/subjects/*
+!freesurfer/subjects/.gitkeep
+
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+*.egg-info/
+
+# conda
+.conda/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# unrelated stray file, intentionally left untracked
+/download-167-197.pdf
