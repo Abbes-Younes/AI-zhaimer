@@ -1,0 +1,15 @@
+name: ai-zhaimer
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - nibabel
+  - nilearn
+  - scikit-learn
+  - pandas
+  - numpy
+  - statsmodels
+  - matplotlib
+  - seaborn
+  - jupyter
+  - pip
