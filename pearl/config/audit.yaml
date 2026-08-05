@@ -1,0 +1,49 @@
+dataset:
+  accession: ds004796
+  name: PEARL-Neuro
+  source: OpenNeuro
+  version: null
+  fetch_date: null
+columns:
+  subject_id: participant_id
+  apoe: APOE_haplotype
+  picalm: PICALM_rs3851179
+  age: age
+  sex: sex
+  education: education
+thresholds:
+  max_download_bytes: 52428800
+  min_free_space_gb: 20
+  max_mismatches: 2
+  dataset_total_subjects: 80
+  expected_group_total: 79
+genotype_normalization: null
+provenance:
+  accession: ds004796
+  version_source: DOI
+  version_string: v1.0.0
+  fetch_date: '2026-08-05'
+  participants_tsv_sha256: 909d8736a138a2d37506bf25ba62020bc38741c62cb261eea902a716dba8ab13
+  s3_listing_date: '2026-08-05'
+observed_tasks:
+- msit
+- rest
+- sternberg
+screen_variables:
+  continuous:
+  - age
+  - BMI
+  - SES
+  - EHI
+  - BDI
+  - RPM
+  - leukocytes
+  - hemoglobin
+  - cholesterol_HDL
+  - LDL_cholesterol
+  - triglycerides
+  categorical:
+  - sex
+  - education
+  - smoking_status
+  - dementia_history_parents
