@@ -1,0 +1,101 @@
+# pearl_preproc fixed pipeline configuration (phase_1.md §2, §3).
+#
+# Every value here is frozen BEFORE any run and applied uniformly to all
+# subjects. No subject-adaptive, group- or risk-related content exists in this
+# file on purpose (label blindness, phase_1.md §2a).
+
+sampling_rates_hz:
+  task-rest: 500      # alpha / cycle-level work: 50 samples per 10 Hz cycle
+  task-msit: 250      # spectral/ERP work: no cycle-level shape analysis
+
+line_noise:
+  freqs_hz: [50]      # Polish mains — never 60 Hz
+  method: auto        # auto = spectral interpolation (zap_line) if importable,
+                      #        else narrow FIR notch (notch_width_hz)
+  notch_width_hz: 1.0 # ≤1 Hz: a wide notch would carve the alpha 5th harmonic
+  margin_hz: 0.5      # |5*IAF − 50| < width/2 + margin → collision flag in QC
+
+filters:
+  high_pass:
+    l_freq_hz: 0.5
+    method: fir
+    phase: zero       # zero-phase FIR: no phase distortion of waveform shape
+    fir_design: firwin
+  anti_alias_factor: 0.8   # explicit low-pass at 0.8 × target Nyquist, pre-resample
+  ica_fit_high_pass_hz: 1.0  # ICA fits poorly on 0.5 Hz data (§2f)
+
+reference:
+  scheme: average     # one scheme, uniformly applied, recorded per sidecar
+  projection: true
+
+ica:
+  method: infomax     # extended infomax — the ICLabel-recommended pairing
+  n_components: 30
+  exclude_threshold: 0.8  # ICLabel artifact-class probability threshold (fixed)
+  random_state: 42
+  excluded_classes: [muscle artifact, eye blink, heart beat, line noise, channel noise]
+
+bad_channels:
+  flat_std_v: 1.0e-8        # below this std → flat channel
+  variance_z_threshold: 4.0 # log-variance z-score → high-variance channel
+  neighbor_corr_threshold: 0.4  # corr with mean of nearest neighbours
+  n_neighbors: 3
+
+artifact_annotation:
+  # Fixed-window peak-to-peak measure (NOT mne.annotate_amplitude, whose
+  # consecutive-sample-difference semantics both misses blinks and labels quiet
+  # resting signal as "flat artifact" — measured 49% of sub-01 rest at 1 µV).
+  peak_v: 1.5e-4    # any channel PTP above 150 µV inside a window → artifact
+  window_s: 1.0     # fixed window length (deterministic across MNE versions)
+
+iaf:
+  band_hz: [7, 13]
+  channels: [O1, Oz, O2, O9, O10, POz, PO7, PO8, PO3, PO4, Pz, P3, P4, PO9, PO10]
+  min_peak_prominence_db: 3.0   # below this → "no identifiable alpha peak" — UNCHANGED
+  require_for_tasks: [task-rest]
+  # Remediation 2026-08-09: rest is 4 min eyes-open + 6 min eyes-closed in one
+  # recording (data/raw_meta/task-rest_eeg.json). IAF must be measured on the
+  # eyes-closed block (alpha is Berger-blocked eyes-open), not a blind
+  # crop(tmax=120) that lands inside the eyes-open block. See eyes_closed_window
+  # in preprocess.py. Falls back to the blind 120s crop only when no S10 marker
+  # or the resolved window is degenerately short.
+  eyes_closed_max_start_gap_s: 60.0   # S10->S1 gap above this = unreliable marker
+  eyes_closed_min_duration_s: 120.0   # resolved window below this = unusable
+
+qc:
+  bad_channels_warn: 4
+  bad_channels_fail: 8
+  # Client decision 2026-08-06: ICA-removed fraction is a WARN-only
+  # over-cleaning outlier flag (phase_1.md §2f/§3). On real data the excluded
+  # components are verified high-confidence muscle (ICLabel p_brain ~ 0), so a
+  # fixed fail line would exclude healthy subjects. No ica_removed_frac_fail is
+  # set on purpose.
+  ica_removed_frac_warn: 0.25
+  artifact_frac_warn: 0.20
+  artifact_frac_fail: 0.40
+  line_noise_present_before_index: 1.5  # 50 Hz peak/baseline above this → real line noise
+  line_noise_fail_after_index: 1.5      # …and still above this after removal → removal failed
+  min_duration_frac: 0.6                # vs listing-derived expected duration → truncation
+  occipital_channels: [O1, Oz, O2, O9, O10, POz, PO7, PO8, PO3, PO4, Pz, P3, P4, PO9, PO10]
+  max_occipital_bads_warn: 3
+  max_occipital_bads_fail: 5
+
+exclusion:
+  max_bad_channels: 10
+  max_occipital_bads: 5       # occipital/parietal interpolations → alpha lives there
+  # require_alpha and max_fail_tasks removed 2026-08-09: neither was ever read
+  # by qc.py (dead config — verified by grep). The live sources of truth are
+  # iaf.require_for_tasks (alpha requirement) and "any fail verdict excludes"
+  # (freeze_exclusions, unconditional). Two sources of truth for one rule is
+  # worse than one; deleting rather than wiring the dead one in, since the
+  # behaviour it described was already correct via the other path.
+
+download:
+  n_workers: 3
+  retries: 1
+  stream_chunk_bytes: 1048576
+
+montage:
+  head_radius_m: 0.085
+  standard: standard_1005     # verified: covers 125/127 channels; O9/O10 added
+  o9_o10_neighbors: {O9: [PO9, OI1h, POO9h], O10: [PO10, OI2h, POO10h]}
