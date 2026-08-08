@@ -107,8 +107,14 @@ def cmd_preprocess(args: argparse.Namespace) -> int:
 
 def cmd_backfill_iaf(args: argparse.Namespace) -> int:
     from . import preprocess
-    cfg = load_preproc_config()
-    result = preprocess.backfill_iaf(cfg, subjects=args.subjects)
+    ensure_dirs()
+    run_id = make_run_id()
+    set_run_id(run_id)
+    try:
+        cfg = load_preproc_config()
+        result = preprocess.backfill_iaf(cfg, subjects=args.subjects)
+    finally:
+        set_run_id(None)
     print(f"  Rewrote IAF for {result['n_rewritten']} (subject, task) sidecars")
     n_gained = sum(1 for r in result["results"]
                   if not (r["iaf_before"] or {}).get("present") and r["iaf_after"]["present"])
