@@ -23,6 +23,10 @@ def load_qc_metrics() -> pd.DataFrame:
 def per_task_cohort(qc: pd.DataFrame) -> pd.DataFrame:
     out = qc[["subject", "task", "verdict"]].copy()
     out["included"] = out["verdict"] != "fail"
+    # Carry the existing per-row QC flags text through as the exclusion
+    # reason (§10 DoD: "new cohort frozen with reasons") — no new reason
+    # logic, reusing exactly what qc.classify_sidecar already recorded.
+    out["reason"] = qc["flags"] if "flags" in qc.columns else ""
     return out.reset_index(drop=True)
 
 

@@ -42,3 +42,19 @@ PROCEED — preprocessing carries no detectable group information.
 ## §1c — Carry-forward covariates
 
 Bad-channel count and ICA-components-removed join SES and BDI as declared Phase 3 covariates, regardless of this verdict (see Amendment 1, `reports/analysis_plan_frozen.md`).
+
+## §6b — 50 Hz harmonic-exclusion index vs. group (post hoc, real data)
+
+Computed after the full feature pipeline run, using the real per-subject
+`excluded_harmonic_index` in `cycle_stats.csv` (derived from each subject's
+own IAF) against group. Chi-squared test of independence:
+
+| group  | index=4 | index=5 |
+|--------|--------:|--------:|
+| A+P+   | 1       | 13      |
+| A+P-   | 4       | 21      |
+| N      | 3       | 22      |
+
+chi2 p-value = 0.721 — no association between the excluded harmonic index and
+group. The synthetic-IAF unit test (`test_fifth_harmonic_excluded_index_does_not_associate_with_group`)
+is confirmed on real data.
