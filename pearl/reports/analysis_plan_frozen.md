@@ -121,3 +121,15 @@ excuse after results exist.
 Bad-channel count and ICA-components-removed join SES and BDI as declared
 covariates for Phase 3, regardless of the confound-gate verdict in
 `reports/phase2_confound_gate.md`.
+
+### Benchmark citation status
+
+See `reports/benchmark_citation.md` — status: **VERIFIED**. Li, Z.; Wang, H.;
+Song, J.; Gong, J. (2025). *Sensors*, 25(1), 52. DOI: 10.3390/s25010052. The
+0.58 AUC comes from **task-state MSIT (low-demand condition), multitaper/TFAAT
+features, SVM** — not resting-state and not the PSR/PSWT feature family. Since
+the source paper itself found task EEG outperforms resting-state EEG for this
+classification problem, 0.58 is, if anything, an optimistic reference point
+for this project's rest-based primary target — note this asymmetry when
+reporting Phase 3 results against the benchmark, do not present it as a
+matched comparison.
