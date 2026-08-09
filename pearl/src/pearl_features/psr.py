@@ -10,6 +10,8 @@ import numpy as np
 
 
 def mode_period(cycles: list[np.ndarray]) -> int:
+    if not cycles:
+        raise ValueError("mode_period called with zero cycles — nothing to build a PSR matrix from.")
     lengths = [len(c) for c in cycles]
     return Counter(lengths).most_common(1)[0][0]
 

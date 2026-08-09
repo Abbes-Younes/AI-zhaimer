@@ -49,6 +49,14 @@ def test_build_psr_matrix_raises_below_40():
         build_psr_matrix(cycles)
 
 
+def test_mode_period_raises_clean_error_on_empty_cycles():
+    """Regression: a channel with zero valid cycles (e.g. cycle detection
+    found nothing usable) must raise a catchable ValueError, not an
+    IndexError from Counter({}).most_common(1)[0]."""
+    with pytest.raises(ValueError):
+        mode_period([])
+
+
 def test_psr_reconstruction_round_trip():
     """Required by phase_2.md §4/§9: PSR construction followed by inverse must
     reconstruct to within numerical tolerance on a synthetic pseudo-periodic

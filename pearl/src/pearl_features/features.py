@@ -102,6 +102,20 @@ def compute_channel_features(broadband_channel: np.ndarray, iaf_hz: float, sfreq
     valid_cycles, cycle_stats = extract_valid_cycles(broadband_channel, boundaries, sfreq,
                                                        iaf_hz, validity_cfg)
 
+    n_sub = cfg["aggregation"]["cycle_subsample_n"]
+    if cycle_stats["n_valid"] < n_sub:
+        # Below the fixed cycle-count floor this channel will be dropped by
+        # compute_subject_features regardless — skip PSR/PSWT construction
+        # entirely rather than crashing on an (near-)empty cycle list (PSR's
+        # mode-of-lengths and the P>=40 assertion both assume a non-trivial
+        # sample).
+        return {
+            "profile": np.zeros((0, cfg["harmonics"]["n_harmonics"])), "excl_idx": None,
+            "cycle_stats": cycle_stats, "detail_energy": np.zeros(0), "hi_ratio": np.zeros(0),
+            "period_variability": np.zeros(0), "rise_decay_ratio": np.zeros(0),
+            "sharpness_ratio": np.zeros(0),
+        }
+
     psr_matrix = build_psr_matrix(valid_cycles)
     cycle_freq_hz = 1.0 / cycle_stats["median_period_s"]
     excl_idx = fifth_harmonic_index(iaf_hz, cfg["harmonics"]["n_harmonics"], cycle_freq_hz,
