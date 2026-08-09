@@ -37,6 +37,20 @@ def test_harmonic_estimate_plus_residual_equals_original():
     np.testing.assert_allclose(h_est + residual, psr, atol=1e-6)
 
 
+def test_harmonic_estimate_matches_psr_shape_for_odd_cycle_count():
+    """Regression: pywt periodization-mode reconstruction rounds an odd-length
+    signal up by one sample at deeper decomposition levels (e.g. 305 -> 306).
+    n_cycles is frequently odd on real data, so this must not desync the
+    residual computation."""
+    psr = _synthetic_psr(n_cycles=305, p=59, seed=3)
+    sub = demultiplex(psr)
+    decomp = decompose(sub, wavelet="db8")
+    h_est = harmonic_estimate(decomp, wavelet="db8")
+    assert h_est.shape == psr.shape
+    residual = inter_harmonic_residual(psr, h_est)
+    assert residual.shape == psr.shape
+
+
 def test_harmonic_estimate_removes_most_high_frequency_noise():
     p = 50
     n_cycles = 64

@@ -18,12 +18,17 @@ def _max_level(n: int, wavelet: str) -> int:
 
 
 def decompose(subsignals: np.ndarray, wavelet: str = "db8", level: int | None = None):
+    """Returns a list of (approx, details, orig_len) per subsignal. orig_len is
+    carried through because pywt's periodization mode can round an odd-length
+    signal's reconstruction up by one sample at deeper decomposition levels —
+    every reconstruction below crops back to orig_len so PSR-cycle-count
+    (n_cycles is frequently odd) never desyncs downstream shapes."""
     out = []
     for row in subsignals:
         lvl = level if level is not None else _max_level(len(row), wavelet)
         lvl = max(1, lvl)
         coeffs = pywt.wavedec(row, wavelet, level=lvl, mode="periodization")
-        out.append((coeffs[0], coeffs[1:]))
+        out.append((coeffs[0], coeffs[1:], len(row)))
     return out
 
 
@@ -31,10 +36,10 @@ def harmonic_estimate(decomposition, wavelet: str = "db8") -> np.ndarray:
     """Reconstruct each subsignal from its lowpass/approx band only -> the
     harmonic/periodic estimate. Re-multiplexed back to (n_cycles, P)."""
     rows = []
-    for approx, details in decomposition:
+    for approx, details, orig_len in decomposition:
         zero_details = [np.zeros_like(d) for d in details]
         recon = pywt.waverec([approx, *zero_details], wavelet, mode="periodization")
-        rows.append(recon)
+        rows.append(recon[:orig_len])
     subsignals_recon = np.stack(rows, axis=0)  # (P, n_cycles)
     return subsignals_recon.T  # -> (n_cycles, P)
 
@@ -49,7 +54,7 @@ def perfect_reconstruction(subsignals: np.ndarray, wavelet: str = "db8") -> np.n
     used directly by feature extraction (harmonic_estimate is)."""
     decomp = decompose(subsignals, wavelet=wavelet)
     rows = []
-    for approx, details in decomp:
+    for approx, details, orig_len in decomp:
         recon = pywt.waverec([approx, *details], wavelet, mode="periodization")
-        rows.append(recon)
+        rows.append(recon[:orig_len])
     return np.stack(rows, axis=0)

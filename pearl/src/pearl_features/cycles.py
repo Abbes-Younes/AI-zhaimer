@@ -33,22 +33,28 @@ def positive_slope_zero_crossings(signal: np.ndarray, sfreq: float) -> np.ndarra
     return idx.astype(np.int64)
 
 
-def phase_locked_boundaries(crossings: np.ndarray, sfreq: float) -> np.ndarray:
+def phase_locked_boundaries(crossings: np.ndarray, sfreq: float,
+                             smoothing_window: int = 5) -> np.ndarray:
     """§3 step 3: estimate the period from local crossing spacing, then locate
     the next boundary as the crossing closest to t_k + P(t_k) — not merely the
-    next one after it. P(t_k) is estimated as the gap to the immediately
-    preceding crossing (the only period estimate available causally at t_k);
-    the first crossing is always kept as-is (no prior period to phase-lock from)."""
+    next one after it.
+
+    P(t_k) is a running median of the last `smoothing_window` accepted gaps
+    (falling back to fewer while warming up, and to the gap between the first
+    two raw crossings before any boundary has been accepted). A single-gap
+    causal estimate is not used: on real, noisy narrowband signal a single bad
+    gap (e.g. one missed/spurious crossing) permanently doubles the period
+    estimate and the loop locks into half-rate detection from then on — a
+    smoothed estimate dilutes one bad sample instead of propagating it."""
     if len(crossings) < 2:
         return crossings.copy()
 
     boundaries = [int(crossings[0])]
+    recent_gaps: list[int] = []
     while True:
         t_k = boundaries[-1]
-        # causal period estimate: gap to the previous accepted boundary, else
-        # the gap between the first two raw crossings
-        if len(boundaries) >= 2:
-            period_samples = boundaries[-1] - boundaries[-2]
+        if recent_gaps:
+            period_samples = np.median(recent_gaps[-smoothing_window:])
         else:
             period_samples = crossings[1] - crossings[0]
         target = t_k + period_samples
@@ -56,6 +62,7 @@ def phase_locked_boundaries(crossings: np.ndarray, sfreq: float) -> np.ndarray:
         if len(candidates) == 0:
             break
         closest = candidates[np.argmin(np.abs(candidates - target))]
+        recent_gaps.append(closest - t_k)
         boundaries.append(int(closest))
         if closest >= crossings[-1]:
             break

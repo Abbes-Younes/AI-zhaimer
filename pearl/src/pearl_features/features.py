@@ -154,18 +154,41 @@ def compute_subject_features(subject: str, cfg: dict, iaf_hz: float) -> tuple[di
     per_channel_hi, per_channel_cc, per_channel_pv = {}, {}, {}
     per_channel_rd, per_channel_pt = {}, {}
     excl_indices, cycle_stats_by_channel = {}, {}
+    dropped_channels = []
 
     for ch_idx, ch in enumerate(ch_names):
         r = compute_channel_features(data[ch_idx], iaf_hz, sfreq, cfg)
+        # A channel with fewer valid cycles than the fixed subsample floor is
+        # dropped from this subject's ROI average rather than failing the
+        # whole subject — §6d's fixed-count rule controls per-subject
+        # estimator variance; one noisy occipital site among the ROI's 15
+        # should not veto an otherwise usable subject.
+        if r["cycle_stats"]["n_valid"] < n_sub:
+            dropped_channels.append(ch)
+            continue
         excl_indices[ch] = r["excl_idx"]
         cycle_stats_by_channel[ch] = r["cycle_stats"]
         for h in range(1, n_h + 1):
-            per_channel_h[h][ch] = aggregate_cycles(r["profile"][:, h - 1], n_sub, seed)
+            if h == r["excl_idx"]:
+                # this harmonic column is all-NaN by design (§6b, the
+                # per-subject 50Hz-nearest index) — mark it NaN directly
+                # rather than passing an all-NaN column through
+                # aggregate_cycles, which raises on "too few real cycles"
+                # without distinguishing that from "intentionally excluded".
+                per_channel_h[h][ch] = {"median": float("nan"), "iqr": float("nan")}
+            else:
+                per_channel_h[h][ch] = aggregate_cycles(r["profile"][:, h - 1], n_sub, seed)
         per_channel_hi[ch] = aggregate_cycles(r["hi_ratio"], n_sub, seed)
         per_channel_cc[ch] = aggregate_cycles(r["detail_energy"], n_sub, seed)
         per_channel_pv[ch] = aggregate_cycles(r["period_variability"], n_sub, seed)
         per_channel_rd[ch] = aggregate_cycles(r["rise_decay_ratio"], n_sub, seed)
         per_channel_pt[ch] = aggregate_cycles(r["sharpness_ratio"], n_sub, seed)
+
+    if len(dropped_channels) > len(ch_names) / 2:
+        raise ValueError(
+            f"{subject}: {len(dropped_channels)}/{len(ch_names)} ROI channels had fewer than "
+            f"{n_sub} valid cycles ({dropped_channels}) — too few surviving channels to trust "
+            f"a ROI average; excluding this subject rather than averaging over a minority.")
 
     out = {}
     for h in range(1, n_h + 1):
@@ -185,5 +208,6 @@ def compute_subject_features(subject: str, cfg: dict, iaf_hz: float) -> tuple[di
         "usable_duration_s": usable_s,
         "excluded_harmonic_index": max(set(excl_indices.values()), key=list(excl_indices.values()).count),
         "cycle_stats_by_channel": cycle_stats_by_channel,
+        "dropped_channels": dropped_channels,
     }
     return out, meta
