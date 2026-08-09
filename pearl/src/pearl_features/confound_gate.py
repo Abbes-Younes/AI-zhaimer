@@ -95,3 +95,76 @@ def exclusion_status_association(per_task: pd.DataFrame, group_map: dict[str, st
     table = table.reindex(columns=[True, False], fill_value=0)
     odds_ratio, p = stats.fisher_exact(table.to_numpy())
     return {"odds_ratio": float(odds_ratio), "p_value": float(p)}
+
+
+# ---------------------------------------------------------------------------
+# §1b — the decisive test: fit a model on QC metrics alone
+# ---------------------------------------------------------------------------
+
+from sklearn.impute import SimpleImputer
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import roc_auc_score
+from sklearn.model_selection import StratifiedKFold
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
+
+
+def _cv_mean_auc(X: np.ndarray, y: np.ndarray, n_splits: int, n_repeats: int,
+                  seed: int) -> float:
+    aucs = []
+    rng = np.random.default_rng(seed)
+    for _rep in range(n_repeats):
+        skf = StratifiedKFold(n_splits=n_splits, shuffle=True,
+                               random_state=int(rng.integers(0, 2**31 - 1)))
+        for train_idx, test_idx in skf.split(X, y):
+            clf = make_pipeline(SimpleImputer(strategy="median"), StandardScaler(),
+                                 LogisticRegression(max_iter=1000))
+            clf.fit(X[train_idx], y[train_idx])
+            proba = clf.predict_proba(X[test_idx])[:, 1]
+            if len(np.unique(y[test_idx])) < 2:
+                continue
+            aucs.append(roc_auc_score(y[test_idx], proba))
+    return float(np.mean(aucs)) if aucs else 0.5
+
+
+def qc_only_auc(qc: pd.DataFrame, group_map: dict[str, str] | dict[str, int],
+                 metrics: list[str], n_splits: int = 5, n_repeats: int = 3,
+                 n_permutations: int = 1000, seed: int = 42) -> dict:
+    """Nested-CV, permutation-tested AUC of a classifier trained on QC metrics
+    alone against the primary target. Not modelling the hypothesis — measuring
+    the contamination floor (phase_2.md §1b)."""
+    df = qc.copy()
+    df["y"] = df["subject"].map(group_map)
+    df = df.dropna(subset=["y"])
+    df = df.drop_duplicates(subset="subject")  # subject-level: one row per subject
+    X = df[metrics].to_numpy(dtype=float)
+    y = df["y"].to_numpy(dtype=int)
+
+    observed = _cv_mean_auc(X, y, n_splits, n_repeats, seed)
+
+    rng = np.random.default_rng(seed)
+    perm_aucs = np.empty(n_permutations)
+    for i in range(n_permutations):
+        y_perm = rng.permutation(y)
+        perm_aucs[i] = _cv_mean_auc(X, y_perm, n_splits, 1, seed + i + 1)
+    p_value = float((perm_aucs >= observed).sum() + 1) / (n_permutations + 1)
+
+    boot_aucs = []
+    rng2 = np.random.default_rng(seed + 1)
+    n = len(y)
+    for _ in range(2000):
+        idx = rng2.integers(0, n, size=n)
+        if len(np.unique(y[idx])) < 2:
+            continue
+        boot_aucs.append(_cv_mean_auc(X[idx], y[idx], n_splits, 1, seed))
+    ci_low, ci_high = (np.percentile(boot_aucs, [2.5, 97.5]) if boot_aucs else (observed, observed))
+
+    if observed > 0.65:
+        verdict = "escalate"
+    elif observed >= 0.55:
+        verdict = "proceed_with_baseline"
+    else:
+        verdict = "proceed"
+
+    return {"mean_auc": observed, "ci_low": float(ci_low), "ci_high": float(ci_high),
+            "p_value": p_value, "verdict": verdict}

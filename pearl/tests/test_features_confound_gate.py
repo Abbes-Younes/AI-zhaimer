@@ -58,3 +58,26 @@ def test_exclusion_status_association_runs_fisher():
     result = exclusion_status_association(per_task, groups)
     assert 0.0 <= result["p_value"] <= 1.0
     assert "odds_ratio" in result
+
+
+from pearl_features.confound_gate import qc_only_auc
+
+
+def test_qc_only_auc_near_chance_on_random_labels():
+    qc, groups = _fake_qc(n_per_group=20, seed=1)
+    binary_map = {s: (0 if g == "N" else 1) for s, g in groups.items()}
+    result = qc_only_auc(qc, binary_map, CONTINUOUS_METRICS,
+                          n_splits=3, n_repeats=1, n_permutations=20, seed=1)
+    assert 0.3 <= result["mean_auc"] <= 0.7
+    assert result["verdict"] in {"proceed", "proceed_with_baseline"}
+    assert 0.0 <= result["p_value"] <= 1.0
+
+
+def test_qc_only_auc_escalates_when_metric_is_a_perfect_group_proxy():
+    qc, groups = _fake_qc(n_per_group=20, seed=2)
+    binary_map = {s: (0 if g == "N" else 1) for s, g in groups.items()}
+    qc["n_bad_channels"] = qc["subject"].map(lambda s: 0.0 if binary_map[s] == 0 else 100.0)
+    result = qc_only_auc(qc, binary_map, CONTINUOUS_METRICS,
+                          n_splits=3, n_repeats=1, n_permutations=20, seed=2)
+    assert result["mean_auc"] > 0.9
+    assert result["verdict"] == "escalate"
