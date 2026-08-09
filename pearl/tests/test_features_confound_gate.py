@@ -81,3 +81,21 @@ def test_qc_only_auc_escalates_when_metric_is_a_perfect_group_proxy():
                           n_splits=3, n_repeats=1, n_permutations=20, seed=2)
     assert result["mean_auc"] > 0.9
     assert result["verdict"] == "escalate"
+
+
+import pandas as pd
+
+from pearl_features.confound_gate_report import render
+
+
+def test_render_report_is_verdict_first_markdown():
+    full = pd.DataFrame({"metric": ["n_bad_channels"], "test": ["kruskal-wallis"],
+                          "statistic": [1.0], "p_value": [0.5], "p_fdr": [0.5],
+                          "effect_size": [0.0], "ci_low": [0.0], "ci_high": [0.1]})
+    gate_result = {"mean_auc": 0.51, "ci_low": 0.45, "ci_high": 0.58,
+                   "p_value": 0.42, "verdict": "proceed"}
+    exclusion_assoc = {"odds_ratio": 1.1, "p_value": 0.8}
+    text = render(full, full, exclusion_assoc, gate_result)
+    first_line = text.strip().splitlines()[0]
+    assert "PROCEED" in first_line.upper() or "VERDICT" in first_line.upper()
+    assert "0.51" in text
