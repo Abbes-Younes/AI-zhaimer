@@ -70,3 +70,54 @@ signed off by the client.
 - IAF and the 5th-harmonic-collision flag per subject from `qc_metrics.csv`;
   harmonic bins flagged as colliding with the treated line-noise band are
   excluded from PSWT features.
+
+---
+
+## Amendment 1 — 2026-08-09
+
+**Status:** committed. Appends to, does not rewrite, the frozen plan above.
+
+### Exclusion unit changed: subject → (subject, task)
+
+Per-task exclusion is the correct rule independent of the N it yields:
+excluding a subject from a rest-based primary analysis because their MSIT
+recording was noisy is a category error, not a stricter standard. The frozen
+primary target is rest-based; the exclusion unit is now `(subject, task)`,
+which was already the grain of `qc_metrics.csv` — only
+`pearl_preproc.qc.freeze_exclusions` collapsed it to the subject. Phase 2
+does not apply that collapse (see `pearl_features/cohort.py`); no QC
+threshold changed, only the unit the existing thresholds are applied to.
+
+**Disclosure:** the resulting rest-cohort N (**64**, split 39 at-risk / 25
+no-risk under `binary_risk_vs_none`) was known before this rule was adopted —
+it happens to equal the subject-level N of 64 already reported in Phase 1.
+The rule is adopted because it is the correct unit of analysis, not because
+of the N — but that N was visible when the decision was made, and this
+sentence records that fact so the choice cannot later be read as blind to
+its effect.
+
+### Primary target: unchanged
+
+`binary_risk_vs_none` remains the frozen primary target. Changing it because N
+moved is exactly the failure the freeze exists to prevent.
+
+### Secondary framings demoted to descriptive-only
+
+`binary_high_vs_rest` and `multiclass_3` are demoted to **descriptive
+reporting only**. At the A_P_plus survivor count under the per-task rule
+(12–14) they cannot support a tested claim. Phase 3 reports their descriptive
+statistics (group sizes, feature-wise summary stats); it must not compute a
+p-value or claim a result for either framing.
+
+### Power statement (written now, before results exist)
+
+At 39 vs 25 (rest-cohort per-task N, `binary_risk_vs_none`), the study is
+underpowered to reliably distinguish a true AUC of 0.65 from the published
+0.58. This is a known limitation stated in advance so it cannot be read as an
+excuse after results exist.
+
+### Carry-forward covariates (phase_2.md §1c)
+
+Bad-channel count and ICA-components-removed join SES and BDI as declared
+covariates for Phase 3, regardless of the confound-gate verdict in
+`reports/phase2_confound_gate.md`.
