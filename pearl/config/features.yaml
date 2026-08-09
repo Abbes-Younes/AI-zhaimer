@@ -1,0 +1,66 @@
+# pearl_features fixed feature configuration (phase_2.md §6). Every value
+# here is declared BEFORE running extraction and applied uniformly. Nothing
+# added after seeing results. <= 30 features total (§6e).
+
+roi_channels: [O1, Oz, O2, O9, O10, POz, PO7, PO8, PO3, PO4, Pz, P3, P4, PO9, PO10]
+
+narrowband:
+  half_width_hz: 2.0
+
+cycle_validity:
+  min_period_frac: 0.6   # +-40% of 1/IAF
+  max_period_frac: 1.4
+  min_amplitude_percentile: 10.0
+
+artifact_rejection:
+  peak_v: 1.5e-4      # reuse Phase 1's fixed-window PTP threshold (config/preproc.yaml)
+  window_s: 1.0
+
+harmonics:
+  n_harmonics: 5       # harmonics 1..5 of the fundamental; harmonic 5 is the
+                       # one nearest 50 Hz for a ~10 Hz alpha rhythm and gets
+                       # excluded per-subject by index (§6b)
+  mains_hz: 50.0
+
+pswt:
+  wavelet: db8
+
+aggregation:
+  cycle_subsample_n: 200   # fixed cycle count per subject (§6d): a 6-minute
+                            # eyes-closed rest block at ~10 Hz alpha yields
+                            # ~3,600 candidate cycles per channel before
+                            # validity filtering, so 200 leaves ample margin
+                            # even after ~30% rejection on the noisier
+                            # subjects. Verified against the surviving cohort
+                            # in cycle_stats.csv (Task 14); any subject below
+                            # this floor is excluded, not under-sampled.
+  seed: 20260809
+
+dimensionality_budget:
+  max_features: 30
+
+feature_list:
+  # 5 waveform-shape families x (median, IQR) x (aggregated already across
+  # cycles+channels, so each family contributes exactly 2 columns) = 10
+  # columns, well under the 30 cap, leaving headroom for the harmonic profile
+  # (5 harmonics x 2 agg stats = 10, one NaN'd per subject) = 20 total.
+  - harmonic_amplitude_profile_h1_median
+  - harmonic_amplitude_profile_h1_iqr
+  - harmonic_amplitude_profile_h2_median
+  - harmonic_amplitude_profile_h2_iqr
+  - harmonic_amplitude_profile_h3_median
+  - harmonic_amplitude_profile_h3_iqr
+  - harmonic_amplitude_profile_h4_median
+  - harmonic_amplitude_profile_h4_iqr
+  - harmonic_amplitude_profile_h5_median
+  - harmonic_amplitude_profile_h5_iqr
+  - harmonic_to_interharmonic_ratio_median
+  - harmonic_to_interharmonic_ratio_iqr
+  - cycle_to_cycle_variability_median
+  - cycle_to_cycle_variability_iqr
+  - period_variability_median
+  - period_variability_iqr
+  - rise_decay_ratio_median
+  - rise_decay_ratio_iqr
+  - peak_trough_sharpness_ratio_median
+  - peak_trough_sharpness_ratio_iqr
