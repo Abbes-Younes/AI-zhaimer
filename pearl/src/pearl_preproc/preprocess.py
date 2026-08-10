@@ -262,6 +262,23 @@ def eyes_closed_window(annotations, tmax: float,
     return (start, end)
 
 
+def eyes_open_window(annotations, tmax: float, min_duration_s: float = 60.0) -> tuple[float, float] | None:
+    """Resolve the eyes-open block: recording start up to the first `S 10`
+    marker (phase_3.md §1a positive control). Returns None if there is no
+    `S 10` marker, or the resulting window is shorter than min_duration_s."""
+    desc = [str(d).split("/")[-1].strip() for d in annotations.description]
+    onset = [float(o) for o in annotations.onset]
+
+    i10 = next((i for i, d in enumerate(desc) if d == "S 10"), None)
+    if i10 is None:
+        return None
+    t10 = onset[i10]
+
+    if t10 < min_duration_s:
+        return None
+    return (0.0, t10)
+
+
 def select_iaf_excerpt(raw: mne.io.BaseRaw, cfg: dict, task: str):
     """Pick the excerpt IAF is estimated on; return (excerpt_raw, window_info).
 
