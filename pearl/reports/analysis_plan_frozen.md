@@ -133,3 +133,71 @@ classification problem, 0.58 is, if anything, an optimistic reference point
 for this project's rest-based primary target — note this asymmetry when
 reporting Phase 3 results against the benchmark, do not present it as a
 matched comparison.
+
+---
+
+## Amendment 2 — 2026-08-10
+
+**Status:** committed, before any label is joined to any feature.
+
+### CV variance fix (§0a)
+
+Raised from 5-fold × 3 repeats (frozen plan) to **5-fold × 10 repeats**. More
+repeats reduce the variance of the same estimate; this does not change what
+is being estimated and is decided before any result exists. **Out-of-fold
+predictions are pooled within a repeat** (one AUC over all 64 subjects per
+repeat), not averaged per-fold — averaging per-fold AUCs on ~13-subject test
+folds is both higher-variance and biased. The reported statistic is the mean
+of the 10 per-repeat pooled AUCs, with the spread across repeats reported
+alongside.
+
+### Declared model class (§0b)
+
+- **Primary:** L2-penalised logistic regression, `C` tuned by grid search
+  inside the inner (training-fold-only) loop, features standardised inside
+  the fold.
+- **Secondary:** linear SVM.
+- **Not permitted as primary:** random forest, gradient boosting, any neural
+  network. If run, exploratory and labelled as such — cannot become the
+  headline number.
+
+### Declared reference lines (§0c)
+
+| Reference | Value | Source |
+|---|---|---|
+| Chance | 0.500 | — |
+| QC-only (preprocessing metadata) | 0.545 (CI [0.435, 0.800]) | Phase 2 gate, `reports/phase2_confound_gate.md` |
+| Nuisance-only (age, sex, SES, BDI, education, bad-channel count, ICA components removed, artifact_frac) | computed in §2b | this phase |
+| Published benchmark | 0.58 (MSIT task, not rest) | Li et al. 2025, `reports/benchmark_citation.md` |
+
+A feature model that does not beat the nuisance-only line has not
+demonstrated anything about EEG — that comparison is carried in every
+results table.
+
+### The gate was weaker than it reads (§0d)
+
+Phase 2's QC-only AUC (0.545) came with a 95% CI of **[0.435, 0.800]** — a
+clean pass on the decision rule, and also an interval that does not exclude
+substantial contamination. Treated as "no evidence of contamination," never
+"contamination excluded." `artifact_frac` — borderline on the full 79-subject
+cohort (p_fdr=0.011), non-significant on the surviving N=64 (p_fdr=0.056,
+plausibly a power effect) — **joins the declared nuisance set** alongside
+bad-channel count and ICA components removed.
+
+### Comparison set and correction (§0e)
+
+**Primary comparison (one test):** PSWT features on resting-state vs. the
+nuisance-only line, on `binary_risk_vs_none`.
+
+**Secondary set, Holm-corrected across these three:** baseline features on
+rest; PSWT+baseline combined on rest; baseline features on MSIT.
+
+Everything else is exploratory. The frozen plan's stopping rule stands: no
+additional feature families without a written amendment.
+
+### Achievable precision, stated now (§0f)
+
+At 39 vs 25, the 95% CI on an AUC estimate is expected to be roughly ±0.13–0.15
+wide. A true AUC of 0.70 would produce an interval around [0.56, 0.84]. This is
+recorded before results exist so a wide interval afterwards reads as a known
+property of the sample size, not a disappointment.
