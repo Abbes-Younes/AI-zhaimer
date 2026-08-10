@@ -65,3 +65,54 @@ def write_positive_controls(eo_result: dict, sex_result: dict, out_path: Path,
     text = render_positive_controls(eo_result, sex_result, eo_floor, sex_floor)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(text, encoding="utf-8")
+
+
+_BENCHMARK_VERDICT_TEXT = {
+    "near_benchmark": ("NEAR BENCHMARK — this project's preprocessing and CV machinery are "
+                        "comparable to the published pipeline; the 0.58 reference point is "
+                        "meaningful to compare against."),
+    "at_chance": ("AT CHANCE — STOP AND ESCALATE (phase_3.md §10). This pipeline's MSIT "
+                   "baseline-feature reproduction does not approach the published 0.58. The "
+                   "pipeline differs from the published one (different feature family — band "
+                   "power/1-f vs. multitaper/TFAAT — and/or different preprocessing/sample) in "
+                   "a way that must be understood before the 0.58 figure is quoted as a "
+                   "meaningful comparison target. This does NOT by itself invalidate the "
+                   "primary PSWT-on-rest analysis, which uses neither this feature family nor "
+                   "this task — but the benchmark comparison in every downstream report must be "
+                   "presented with this caveat, not as a validated external check."),
+    "other": ("OTHER — reproduction landed away from both the benchmark and chance; record the "
+               "number and note it without over-interpreting."),
+}
+
+
+def render_benchmark_reproduction(result: dict) -> str:
+    verdict = result["verdict"]
+    lines = [
+        f"# Phase 3 Benchmark Reproduction (MSIT) — VERDICT: {verdict.upper()}",
+        "",
+        _BENCHMARK_VERDICT_TEXT[verdict],
+        "",
+        "## Result",
+        "",
+        f"- AUC: **{result['auc']:.3f}** (published benchmark: 0.58, chance: 0.50)",
+        f"- 95% bootstrap CI: [{result['ci'][0]:.3f}, {result['ci'][1]:.3f}]",
+        f"- Permutation p-value: {result['p_value']:.4f}",
+        f"- Subjects used (MSIT-QC-surviving, complete baseline features): {result['n_subjects_used']}",
+        "",
+        "## Framing caveat",
+        "",
+        "The published 0.58 came from task-state MSIT with multitaper/TFAAT spectral "
+        "features and an SVM classifier (Li et al. 2025) — not this project's simple "
+        "relative-band-power + 1/f baseline with L2 logistic regression. The source paper "
+        "also found task EEG outperforms resting-state EEG for this classification problem, "
+        "so 0.58 is, if anything, an optimistic bar for this project's rest-based primary "
+        "analysis, independent of this reproduction attempt's outcome.",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def write_benchmark_reproduction(result: dict, out_path: Path) -> None:
+    text = render_benchmark_reproduction(result)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(text, encoding="utf-8")
