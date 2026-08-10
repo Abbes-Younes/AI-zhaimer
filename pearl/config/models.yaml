@@ -1,0 +1,33 @@
+# pearl/config/models.yaml — phase_3.md §0. Declared before any label join.
+
+cv:
+  n_splits: 5
+  n_repeats: 10
+  inner_n_splits: 3
+  seed: 20260810
+  c_grid: [0.001, 0.003, 0.01, 0.03, 0.1, 0.3, 1.0, 3.0, 10.0, 30.0, 100.0]
+  n_permutations: 1000
+  n_bootstrap: 2000
+  permutation_n_repeats: 1     # single-repeat CV per permutation, matches Phase 2's qc_only_auc pattern
+  bootstrap_n_repeats: 1
+
+reference_lines:
+  chance: 0.5
+  qc_only_auc: 0.545
+  qc_only_ci: [0.435, 0.800]
+  published_benchmark_auc: 0.58
+  published_benchmark_source: "Li et al. 2025, Sensors 25(1):52, MSIT task (not rest)"
+
+nuisance_columns:
+  demographic: [age, sex, education, BDI, SES]
+  qc: [n_bad_channels, n_ica_removed, artifact_frac]
+
+positive_controls:
+  eyes_open_min_duration_s: 60.0
+  sex_auc_reference_floor: 0.65
+  eyes_open_closed_auc_floor: 0.80
+
+holm_secondary_set:
+  - baseline_rest
+  - pswt_plus_baseline_rest
+  - baseline_msit
