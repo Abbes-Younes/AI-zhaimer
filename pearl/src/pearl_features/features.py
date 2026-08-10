@@ -145,16 +145,23 @@ def compute_channel_features(broadband_channel: np.ndarray, iaf_hz: float, sfreq
     }
 
 
-def compute_subject_features(subject: str, cfg: dict, iaf_hz: float) -> tuple[dict[str, float], dict]:
+def compute_subject_features(subject: str, cfg: dict, iaf_hz: float,
+                              raw=None) -> tuple[dict[str, float], dict]:
     """Orchestrates one subject across cfg['roi_channels']. iaf_hz is passed
     in explicitly (read by the caller from the Phase 1 sidecar — see
     pipeline.py — to keep this function free of file I/O beyond the channel
     loop, which simplifies testing). Returns (feature_dict, meta) where meta
     carries the per-channel excluded harmonic index and cycle stats for
-    cycle_stats.csv."""
+    cycle_stats.csv.
+
+    `raw`, if given, is an already-loaded/cropped mne.io.Raw to extract
+    features from directly (used by Phase 3's eyes-open positive control,
+    pearl_models.positive_controls) instead of loading the eyes-closed
+    window internally — default behaviour (raw=None) is unchanged."""
     from pearl_features.epoching import load_eyes_closed_continuous, reject_artifact_segments
 
-    raw = load_eyes_closed_continuous(subject)
+    if raw is None:
+        raw = load_eyes_closed_continuous(subject)
     raw, _, usable_s = reject_artifact_segments(raw, cfg)
     sfreq = raw.info["sfreq"]
     ch_names = [ch for ch in cfg["roi_channels"] if ch in raw.ch_names]
