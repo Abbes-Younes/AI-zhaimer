@@ -10,7 +10,7 @@ from pearl_models import cv
 
 
 def run_one_analysis(name: str, X: np.ndarray, y: np.ndarray, groups: np.ndarray,
-                      cfg: dict, seed: int) -> dict:
+                      cfg: dict, seed: int, subject_ids: list[str] | None = None) -> dict:
     observed = cv.pooled_repeated_cv(X, y, groups, cfg, seed=seed)
     p_value, perm_aucs = cv.permutation_test(X, y, groups, cfg, seed=seed,
                                               observed_auc=observed["mean_pooled_auc"])
@@ -23,6 +23,9 @@ def run_one_analysis(name: str, X: np.ndarray, y: np.ndarray, groups: np.ndarray
         "p_value": p_value,
         "perm_aucs": perm_aucs,
         "fold_diagnostics": observed["fold_diagnostics"],
+        "oof_proba_last_repeat": observed["oof_proba_last_repeat"],
+        "y": y,
+        "subject_ids": subject_ids if subject_ids is not None else list(range(len(y))),
         "n_subjects_used": len(y),
         "reference_lines": cfg["reference_lines"],
     }
@@ -73,7 +76,8 @@ def run_primary_analysis(cfg: dict) -> dict:
     groups = np.arange(len(y))
     seed = cfg["cv"]["seed"]
 
-    features_only = run_one_analysis("features_only", X_feat, y, groups, cfg, seed=seed)
+    features_only = run_one_analysis("features_only", X_feat, y, groups, cfg, seed=seed,
+                                      subject_ids=list(joined.index))
 
     joined_fn = pswt.join(nuisance[NUISANCE_COLUMNS], how="inner").join(
         labels[["risk_vs_none"]], how="inner")
@@ -82,7 +86,7 @@ def run_primary_analysis(cfg: dict) -> dict:
     y_fn = joined_fn["risk_vs_none"].to_numpy(dtype=int)
     groups_fn = np.arange(len(y_fn))
     features_plus_nuisance = run_one_analysis("features_plus_nuisance", X_fn, y_fn, groups_fn,
-                                               cfg, seed=seed)
+                                               cfg, seed=seed, subject_ids=list(joined_fn.index))
 
     nuisance_only = run_nuisance_only(cfg)
     nuisance_only["name"] = "nuisance_only"

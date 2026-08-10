@@ -36,6 +36,7 @@ dev = [
 pearl-audit = "pearl_audit.cli:main"
 pearl-preproc = "pearl_preproc.cli:main"
 pearl-features = "pearl_features.cli:main"
+pearl-models = "pearl_models.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
