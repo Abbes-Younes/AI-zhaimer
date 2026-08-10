@@ -167,7 +167,7 @@ alongside.
 |---|---|---|
 | Chance | 0.500 | — |
 | QC-only (preprocessing metadata) | 0.545 (CI [0.435, 0.800]) | Phase 2 gate, `reports/phase2_confound_gate.md` |
-| Nuisance-only (age, sex, SES, BDI, education, bad-channel count, ICA components removed, artifact_frac) | computed in §2b | this phase |
+| Nuisance-only (age, sex, SES, BDI, education, bad-channel count, ICA components removed, artifact_frac) | 0.523 (CI [0.306, 0.735]) | this phase, `pearl_models.nuisance.run_nuisance_only` |
 | Published benchmark | 0.58 (MSIT task, not rest) | Li et al. 2025, `reports/benchmark_citation.md` |
 
 A feature model that does not beat the nuisance-only line has not
