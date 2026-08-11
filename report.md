@@ -1,13 +1,18 @@
 # Project Status Report — AI-zhaimer / PEARL-Neuro (ds004796)
 
-**Last updated:** 2026-08-10 (after Phase 3 close)
-**Latest run:** `run_id 20260810T152236Z-d8ab867` (see `pearl/data/derivatives/models/_meta.json`)
-**Git:** branch `phase3-modeling-validation-delivery`, not yet merged to `master`
-**Test suite:** 228 passed (`pearl/`, was 190 at Phase 2 close, 144 at Phase 1 close, 91 at Phase 0.5 close)
+**Last updated:** 2026-08-11 (after Phase 4 close — project complete)
+**Latest run:** `run_id 20260810T152236Z-d8ab867` (see `pearl/data/derivatives/models/_meta.json`); shipped model retrained on the corrected 18-feature set during Phase 4 Task D, same reported CV number
+**Git:** merged to `master`; tag `v1.0-phase3-null` marks the commit that produced the reported primary result
+**Test suite:** 241 passed (`pearl/`, was 228 at Phase 3 close, 190 at Phase 2 close, 144 at Phase 1 close, 91 at Phase 0.5 close)
 
 ---
 
 ## TL;DR
+
+**The project is complete.** All four phases closed; a containerized,
+correctly-positioned research tool is delivered alongside a validated null
+result. Start with `pearl/reports/phase4_final_report.md` (client-facing) or
+`HANDOVER.md` (if resuming/extending this work).
 
 **Phase 0 / 0.5** are closed: 79/79 subjects reconciled, 0 blocking confounds,
 Scope C (rest + MSIT) approved and downloaded.
@@ -17,11 +22,11 @@ Scope C (rest + MSIT) approved and downloaded.
 documented, and resolved by the scope decision in §6.1.
 
 **Phase 2** closed clean: confound gate passed (QC-only AUC 0.545), 64-subject
-cohort frozen, 20 PSWT + 16 baseline features extracted, nothing fitted to
-labels.
+cohort frozen, 20 PSWT + 16 baseline features extracted (18 PSWT effective —
+see Phase 4), nothing fitted to labels.
 
 **Phase 3** (`phase_3.md`) — the only phase that touches the primary
-target — is now closed too. **Verdict: NULL.** The primary analysis (PSWT
+target — closed with **Verdict: NULL.** The primary analysis (PSWT
 features on resting-state EEG vs. genetic risk group, N=64) scored
 **AUC 0.474** (95% CI [0.266, 0.702], permutation p=0.577) — it does not
 beat chance, and does not beat the nuisance-only reference line (0.523).
@@ -638,8 +643,161 @@ pytest tests/ -q                # 228 passed
 python -m pearl_models.cli      # re-runs the full Phase 3 pipeline; expensive (~1.5-2h at full precision)
 ```
 
-### 8.13 Status: not yet merged
+### 8.13 Status: merged
 
-Work is complete on branch `phase3-modeling-validation-delivery`, all tests
-green, all Definition-of-Done items satisfied. Awaiting your decision on
-how to integrate it (merge locally / PR / keep as-is).
+Merged to `master` (fast-forward, `f5122b0`), tag `v1.0-phase3-null` marks
+the commit that produced the reported number (`d8ab867`).
+
+---
+
+## 9. Phase 4 — Diagnostic Closeout, Packaging & Handover (project complete)
+
+Phase 3 left one ambiguity (positive control 1b, sex classification, landed
+at chance — did that mean the cohort has no detectable subject-level signal
+at all, or that the PSWT feature family specifically doesn't carry it?) and
+two documented feature-definition defects. Phase 4 resolved both, packaged
+the tool, and produced the client deliverable and handover pack. **The
+primary verdict is unchanged and frozen: NULL, AUC 0.474** — nothing in this
+phase touched or could touch it.
+
+### 9.1 Task A — control diagnostic ladder (§0): VERDICT resolved
+
+Same CV machinery, same 64-subject cohort, **target = sex only, throughout**
+— enforced in code: `pearl_models.control_diagnostic.run_rung` raises
+`ValueError` if pointed at any target other than `"sex"`, not just
+documented as a rule. All three declared rungs ran regardless of outcome:
+
+| Rung | AUC | 95% CI | permutation p |
+|---|---|---|---|
+| 1 — baseline spectral (16 features) | 0.693 | [0.402, 0.829] | **0.013** |
+| 2 — PSWT + baseline combined | 0.556 | [0.336, 0.764] | 0.265 |
+| 3 — per-channel/zone, fresh computation | 0.685 | [0.418, 0.840] | **0.024** |
+
+**Resolved:** rungs 1 and 3 are statistically significant (p<0.05); rung 2
+(the combination) is not — adding PSWT features *diluted* rather than added
+to a signal that spectral features alone and per-channel features alone
+both detect. This resolves the ambiguity in favor of the more informative
+reading: *"The pitch-synchronous feature family did not detect genotype
+group, on a cohort where other EEG features do carry subject-level
+information. This is a negative result for the method as applied here."*
+Not "inconclusive" — a real negative result specific to PSWT.
+
+A real self-caught bug preceded this conclusion: the initial "clearly above
+chance" criterion was an unjustified CI-lower-bound threshold (>0.55) that
+gave the wrong answer (`stopped_at: None`) despite two rungs having
+permutation p<0.05. Replaced with the permutation p-value — the same
+significance convention used everywhere else in this project — before
+trusting the result. Full report: `reports/phase4_control_diagnostic.md`.
+
+### 9.2 Task B — two feature-definition defects fixed (§1)
+
+- **`harmonic_amplitude_profile_h1_median`/`h1_iqr` removed.** Harmonic 1
+  normalised to itself is exactly 1.0/0.0 for every cycle, always — a
+  tautological constant, not a real feature (confirmed: 0% selection
+  frequency in Phase 3's own stability table). Declared PSWT feature count
+  20 → **18**. Does not require re-running the primary CV (removing
+  exactly-constant columns cannot change an L2 logistic regression's fit).
+  `features_pswt.csv` regenerated by dropping the two columns directly.
+- **`harmonic_amplitude_profile_h5_*` flagged, not removed.** NaN for 53/64
+  subjects by design (the 50Hz-exclusion index working as intended);
+  correlates with recording duration (r=0.81, 0.96) among the small
+  non-missing subset — a usability caveat recorded in the feature
+  dictionary, with a design lesson for any future phase (the exclusion
+  should apply at the harmonic-profile level, not leave a mostly-empty
+  fixed column).
+- Added `assert_no_constant_features`/`assert_missingness_below_threshold`
+  as permanent regression tests.
+
+### 9.3 Task C — merge, hygiene, clean-clone reproducibility (§2)
+
+- Tag `v1.0-phase3-null` on `d8ab867` (the exact commit that produced the
+  reported Phase 3 number).
+- **Dependencies pinned exactly** (`==`, not `>=`) in `pyproject.toml`,
+  cross-checked against `pip freeze`.
+- **Clean-clone test run for real**, not assumed: fresh `git clone` + fresh
+  venv + pinned install + `pytest`. Without `pearl/data/`/`data/labels/`
+  present (both intentionally gitignored), 4/237 tests fail with
+  `FileNotFoundError` reading real derivative CSVs — expected, documented
+  in `README.md`'s new Reproduction section, not a bug. With the derivative
+  tree present (copied or regenerated via the four documented CLI
+  commands), **237/237 pass**.
+- `reports/provenance_chain.md`: one-page trace from
+  `participants_tsv_sha256` through every phase `run_id` to the shipped
+  model's own sha256.
+
+### 9.4 Task D — packaged the tool (§3), verified for real
+
+`Dockerfile`, `pearl_models.inference.score_bids_subject` (the single code
+path both the new CLI `score` subcommand and the new stdlib-only thin API
+call), `INSTALL.md`, `RUNBOOK.md`. **Built the image and ran the end-to-end
+smoke test for real** against `sub-52` (raw BrainVision files retained on
+disk from Phase 1's header-repair debugging — no re-download needed) —
+not just written and assumed to work. Result: exit code 0, valid JSON with
+the research-artefact disclaimer present, `status: "scored"`.
+
+Three real bugs found only by actually running the container (all fixed,
+with regression tests where applicable):
+
+| Bug | Root cause | Fix |
+|---|---|---|
+| ICA labeling `ImportError` | `mne-icalabel`'s ICLabel backend needs `torch` or `onnxruntime`, present on the dev host by accident, never declared | Declared `onnxruntime==1.27.0` (lighter than `torch`, same result) |
+| Latent `IndexError` in the ICLabel fallback path | Degenerate PSD with no bin ≥20 Hz — this fallback had never actually been exercised before this run | Fixed defensively, regression test added |
+| Shipped model `ValueError` (20 vs 18 features) | The Task-11 model predated Task B's h1-column fix | Retrained the *deployment artifact only* (frozen CV number unchanged) on the corrected 18-feature set |
+
+### 9.5 Task E — client final report (§4)
+
+`reports/phase4_final_report.md` (+ `.html`) — verdict-first, 8 sections,
+written for a non-specialist reader, not a retitled copy of the Phase 3
+technical report. States plainly what was asked/delivered, the null with
+CI and p-value in plain language, why the result is trustworthy (labels
+verified 79/79, no confounds, confound gate before any feature, label-blind
+pipeline, frozen plan, permutation null at chance, positive controls run),
+the Task A resolution, what the null does/doesn't license, what a proper
+answer would need, a deliverables index, and the known-defects annex.
+**Flagged the French-translation question in the report's own header**
+rather than assuming English is sufficient, per the client's classification
+document having been in French.
+
+### 9.6 Task F — handover pack (§5–6)
+
+`HANDOVER.md`: repo map, phase-to-code relationships, frozen-decision table
+with reasons, **deferred-item sizing** (Option C reprocessing, richer MSIT
+feature engineering, Sternberg ingestion, recovering QC-excluded subjects —
+each stated as new scope with a rough size, not assumed included), data
+retention (what's on disk, what's deletable, what must be kept), and a
+three-step "if you resume this project" reading order.
+
+### 9.7 §10 stop-condition review — all clear
+
+No diagnostic rung ran against `binary_risk_vs_none` (enforced in code).
+Clean-clone failures matched exactly what the README documents. The
+container's output always includes the disclaimer. No one proposed revising
+the primary verdict on Task A's strength — it changed the *wording*
+available for the null (negative vs. inconclusive), never the number.
+
+### 9.8 Artifacts (Phase 4)
+
+| Artifact | Path | Content |
+|---|---|---|
+| Control diagnostic report | `pearl/reports/phase4_control_diagnostic.md` | 3-rung ladder, decision table applied |
+| Final client report | `pearl/reports/phase4_final_report.md` (+`.html`) | non-specialist, verdict-first |
+| Provenance chain | `pearl/reports/provenance_chain.md` | data hash → shipped model |
+| Handover | `HANDOVER.md` | repo map, deferred sizing, resume order |
+| Install/Runbook | `pearl/INSTALL.md`, `pearl/RUNBOOK.md` | verified commands, real smoke-test record |
+| Container | `pearl/Dockerfile` | builds; smoke-tested |
+| Updated feature dictionary | `pearl/data/derivatives/features/feature_dictionary.md` | 18 declared features, defects annex |
+| Retrained shipped model | `pearl/data/derivatives/models/model_final.joblib`, `provenance.json` | matches the corrected 18-feature pipeline |
+| Tag | `v1.0-phase3-null` | the commit that produced the reported number |
+
+### 9.9 Reproduction
+
+```bash
+cd pearl && pip install -e ".[dev]"    # pinned exactly; now also declares onnxruntime
+pytest pearl/tests/ -q                  # 241 passed (requires pearl/data/ present — see README.md)
+docker build -t pearl-models:latest -f pearl/Dockerfile .   # from repo root, not pearl/
+```
+
+### 9.10 Status: project complete, merged
+
+Merged to `master`. This is the final entry in this report unless a Phase 5
+is scoped — see `HANDOVER.md` for what that would cost.
