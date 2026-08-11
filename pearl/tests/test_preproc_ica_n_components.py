@@ -6,6 +6,8 @@ silently truncating 0.99 -> 0.
 """
 from __future__ import annotations
 
+import json
+
 import mne
 import numpy as np
 
@@ -53,3 +55,13 @@ def test_fit_and_exclude_ica_accepts_float_explained_variance_n_components():
     cfg = _cfg(0.99)
     ica, excluded, labels, method = fit_and_exclude_ica(raw, cfg, _excluded_classes_idx(cfg))
     assert 0 < ica.n_components_ <= 20
+
+
+def test_ica_n_components_from_float_config_is_json_serializable():
+    # Regression: with a float (explained-variance) n_components, MNE sets
+    # ica.n_components_ to a numpy int64, which json.dumps rejects -- this
+    # broke the sidecar write in process_subject_task on real data.
+    raw = _tiny_raw()
+    cfg = _cfg(0.99)
+    ica, excluded, labels, method = fit_and_exclude_ica(raw, cfg, _excluded_classes_idx(cfg))
+    json.dumps({"n_components": int(ica.n_components_)})
