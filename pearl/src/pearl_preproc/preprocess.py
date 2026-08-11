@@ -425,11 +425,68 @@ def _write_header_repair(vhdr_path: Path, triplet: dict) -> tuple[Path, list[Pat
     return repaired_vhdr, [repaired_vhdr, repaired_vmrk]
 
 
-def process_subject_task(subject: str, task: str, cfg: dict) -> dict:
-    """Run the full pipeline for one (subject, task); return the QC metrics."""
+def resolve_output_dir(subject: str, output_dir: Path | None, run_id_active: bool,
+                       existing_fif: Path | None, overwrite_existing: bool = False,
+                       live_dir: Path | None = None) -> Path:
+    """Guard against silently overwriting a live derivative (phase_5.md
+    Stage 1 incident, 2026-08-11): a direct, non-orchestrated call to
+    process_subject_task against a subject that already has a derivative on
+    the live PREPROC_DIR path used to overwrite it unconditionally, with no
+    protection. The orchestrated pipeline (pearl_preproc.pipeline) never
+    hits this -- it checks derivative_exists() and skips subjects that
+    already have one. This guard targets exactly the case that skip logic
+    doesn't cover.
+
+    - `output_dir` given -> always honoured (safe by construction, e.g. a
+      scratch directory for experimentation).
+    - `output_dir` is None and no existing derivative -> live_dir, no guard needed.
+    - `output_dir` is None, an existing derivative is present, and a
+      pipeline run_id is active -> live_dir (the orchestrated pipeline's own
+      reprocessing path; trusted).
+    - `output_dir` is None, an existing derivative is present, no run_id
+      active, and overwrite_existing is not explicitly True -> raise.
+    """
+    if output_dir is not None:
+        return output_dir
+    if live_dir is None:
+        live_dir = PREPROC_DIR
+    if existing_fif is not None and existing_fif.exists() and not run_id_active and not overwrite_existing:
+        raise PreprocessError(
+            f"{existing_fif} already exists and this call is not running under an "
+            f"active pipeline run_id -- refusing to overwrite it silently. If this is "
+            f"deliberate ad-hoc reprocessing of a real subject, pass "
+            f"overwrite_existing=True explicitly. If this is experimentation/comparison "
+            f"work, pass output_dir=<scratch path> instead so the live derivative tree "
+            f"is never touched.")
+    return live_dir
+
+
+def process_subject_task(subject: str, task: str, cfg: dict,
+                         output_dir: Path | None = None,
+                         overwrite_existing: bool = False) -> dict:
+    """Run the full pipeline for one (subject, task); return the QC metrics.
+
+    `output_dir`, if given, redirects the derivative write to that directory
+    instead of the live PREPROC_DIR -- use this for any ad-hoc experimentation
+    or comparison work (phase_5.md Stage 1) so the live tree is never at risk.
+    `overwrite_existing` explicitly acknowledges an intentional overwrite of
+    an existing live derivative outside a pipeline run -- see
+    resolve_output_dir's docstring.
+    """
     paths = raw_paths_for(subject, task)
     if not paths["vhdr"].exists():
         raise PreprocessError(f"{paths['vhdr']} missing — run download first")
+
+    # Fail fast on the overwrite guard before doing any expensive work —
+    # the write-time check below is the authoritative one (state can't have
+    # changed in between for a single synchronous call), this is purely to
+    # avoid burning minutes of preprocessing on a call that's doomed to be
+    # refused at the end anyway.
+    _live_dir = PREPROC_DIR / subject / "eeg"
+    resolve_output_dir(
+        subject, output_dir, run_id_active=get_run_id() is not None,
+        existing_fif=_live_dir / f"{subject}_task-{task}_desc-preproc_eeg.fif",
+        overwrite_existing=overwrite_existing, live_dir=_live_dir)
 
     # 1. Triplet validation (orphaned .vhdr = silent corruption). A stale
     #    pre-BIDS DataFile/MarkerFile name that still resolves to a
@@ -516,9 +573,14 @@ def process_subject_task(subject: str, task: str, cfg: dict) -> dict:
         float(art_cfg.get("window_s", 1.0)))
 
     # 10. Write derivative + ICA solution + provenance sidecar
-    out_dir = PREPROC_DIR / subject / "eeg"
-    out_dir.mkdir(parents=True, exist_ok=True)
     stem = f"{subject}_task-{task}"
+    live_dir = PREPROC_DIR / subject / "eeg"
+    existing_fif = live_dir / f"{stem}_desc-preproc_eeg.fif"
+    out_dir = resolve_output_dir(
+        subject, output_dir, run_id_active=get_run_id() is not None,
+        existing_fif=existing_fif, overwrite_existing=overwrite_existing,
+        live_dir=live_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
     fif_path = out_dir / f"{stem}_desc-preproc_eeg.fif"
     ica_path = out_dir / f"{stem}_desc-ica_components.fif"
     json_path = out_dir / f"{stem}_desc-preproc_eeg.json"
