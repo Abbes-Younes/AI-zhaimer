@@ -30,7 +30,11 @@ reference:
 
 ica:
   method: infomax     # extended infomax — the ICLabel-recommended pairing
-  n_components: 30
+  n_components: 0.99  # explained-variance selection, scaled per subject's
+                       # post-interpolation rank -- phase_5.md §0b, evidence
+                       # in reports/phase5_ica_component_evaluation.md
+                       # (fixed n_components=30 caused excess ICLabel
+                       # removal on high-bad-channel subjects)
   exclude_threshold: 0.8  # ICLabel artifact-class probability threshold (fixed)
   random_state: 42
   excluded_classes: [muscle artifact, eye blink, heart beat, line noise, channel noise]
