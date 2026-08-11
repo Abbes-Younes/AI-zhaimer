@@ -46,6 +46,14 @@ def test_valid_triplet_passes(tmp_path):
     assert result["vmrk"].endswith(".vmrk")
 
 
+def test_valid_sternberg_triplet_passes(tmp_path):
+    # phase_5.md §0c: triplet validation is task-name-agnostic; confirm a
+    # third task (sternberg) is accepted with no code change needed.
+    vhdr = _make_triplet(tmp_path, stem="sub-01_task-sternberg_eeg")
+    result = validate_triplet(vhdr)
+    assert result["datafile"] == "sub-01_task-sternberg_eeg.eeg"
+
+
 def test_orphaned_vhdr_detected(tmp_path):
     vhdr = _make_triplet(tmp_path, orphan=True)
     with pytest.raises(TripletError) as exc:

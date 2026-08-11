@@ -10,6 +10,7 @@ def test_target_rates_from_config():
     cfg = load_preproc_config()
     assert target_sfreq(cfg, "task-rest") == 500.0
     assert target_sfreq(cfg, "task-msit") == 250.0
+    assert target_sfreq(cfg, "task-sternberg") == 250.0
 
 
 def test_rates_are_not_hardcoded():
@@ -21,7 +22,7 @@ def test_rates_are_not_hardcoded():
 def test_task_without_rate_raises():
     cfg = load_preproc_config()
     with pytest.raises(PreprocConfigError):
-        target_sfreq(cfg, "task-sternberg")
+        target_sfreq(cfg, "task-nback")  # never configured for this dataset
 
 
 def test_config_file_mentions_both_rates():
@@ -31,3 +32,4 @@ def test_config_file_mentions_both_rates():
     rates = data["sampling_rates_hz"]
     assert rates["task-rest"] == 500
     assert rates["task-msit"] == 250
+    assert rates["task-sternberg"] == 250

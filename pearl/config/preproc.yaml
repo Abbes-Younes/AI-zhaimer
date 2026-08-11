@@ -7,6 +7,8 @@
 sampling_rates_hz:
   task-rest: 500      # alpha / cycle-level work: 50 samples per 10 Hz cycle
   task-msit: 250      # spectral/ERP work: no cycle-level shape analysis
+  task-sternberg: 250 # task EEG, same reasoning as msit -- no cycle-level
+                       # shape analysis needed (phase_5.md §0c)
 
 line_noise:
   freqs_hz: [50]      # Polish mains — never 60 Hz
