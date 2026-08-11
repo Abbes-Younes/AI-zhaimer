@@ -24,6 +24,13 @@ dependencies = [
     # `requests` against OpenNeuro's HTTPS endpoints, not boto3/awscli.
     "mne==1.12.1",
     "mne-icalabel==0.9.0",
+    # mne-icalabel's ICLabel network requires a torch or onnxruntime backend
+    # to actually run -- previously present on the host by accident (never
+    # declared), so pearl_preproc's ICA labeling silently worked in dev but
+    # failed in a container built strictly from pyproject.toml (phase_4.md
+    # Task D, found via the real container smoke test). onnxruntime chosen
+    # over torch: same ICLabel result, far lighter (no torchvision/audio).
+    "onnxruntime==1.27.0",
     # pearl_features (Phase 2) runtime deps.
     "scikit-learn==1.9.0",
     "PyWavelets==1.9.0",

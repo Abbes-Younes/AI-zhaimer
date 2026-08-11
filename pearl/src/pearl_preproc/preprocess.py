@@ -154,8 +154,20 @@ def _ica_labels_fallback(raw, ica, exclude_threshold: float,
         freqs, psd = mne.time_frequency.psd_array_welch(
             src[None, :], ica.info["sfreq"], fmin=1, fmax=45,
             n_fft=int(ica.info["sfreq"] * 2), verbose="ERROR")
-        idx20 = np.where(freqs >= 20)[0][0]
-        muscle_ratio = float(np.mean(psd[0, idx20:]) / np.mean(psd[0, :idx20]))
+        above_20 = np.where(freqs >= 20)[0]
+        if len(above_20) == 0 or above_20[0] == 0:
+            # Degenerate PSD (e.g. very short source segment coarsens
+            # frequency resolution below what fmin/fmax would suggest) --
+            # no usable low/high split, so this fallback criterion can't
+            # fire for this component. Found via the real container smoke
+            # test (phase_4.md Task D): this fallback path had never
+            # actually been exercised before (onnxruntime/torch were always
+            # present on the dev host by accident), so this crash was
+            # latent and untested.
+            muscle_ratio = 0.0
+        else:
+            idx20 = above_20[0]
+            muscle_ratio = float(np.mean(psd[0, idx20:]) / np.mean(psd[0, :idx20]))
         if eog_r > exclude_threshold:
             excluded.append(idx); labels.append("eye blink")
         elif muscle_ratio > 3.0:  # fixed conservative muscle criterion
