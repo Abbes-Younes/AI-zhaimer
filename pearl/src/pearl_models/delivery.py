@@ -176,3 +176,11 @@ def write_model_card(provenance: dict, out_path: Path) -> None:
     ]
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def write_provenance_json(provenance: dict, out_path: Path) -> None:
+    """Machine-readable twin of model_card.md, for pearl_models.inference to
+    load without parsing Markdown (phase_4.md Task D)."""
+    import json
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(provenance, indent=2) + "\n", encoding="utf-8")

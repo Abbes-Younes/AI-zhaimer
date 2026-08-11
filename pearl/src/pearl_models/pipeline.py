@@ -57,7 +57,7 @@ def run(run_id: str | None = None) -> dict:
     from pearl_models.primary import run_primary_analysis, run_secondary_set, feature_stability
     from pearl_models.leakage import run_full_checklist
     from pearl_models.reports import write_positive_controls, write_benchmark_reproduction, write_results
-    from pearl_models.delivery import train_final_model, write_model_card
+    from pearl_models.delivery import train_final_model, write_model_card, write_provenance_json
     from pearl_models.paths import CONFIG_DIR, REPORTS_DIR
     from pearl_models.data import load_pswt_features
     from pearl_features.features import load_features_config
@@ -102,6 +102,7 @@ def run(run_id: str | None = None) -> dict:
     pipeline_model, provenance = train_final_model(cfg, primary["features_only"])
     joblib.dump(pipeline_model, MODELS_DIR / "model_final.joblib")
     write_model_card(provenance, MODELS_DIR / "model_card.md")
+    write_provenance_json(provenance, MODELS_DIR / "provenance.json")
 
     all_results = {"features_only": primary["features_only"],
                    "features_plus_nuisance": primary["features_plus_nuisance"],
