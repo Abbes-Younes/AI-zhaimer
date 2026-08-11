@@ -40,12 +40,18 @@ dimensionality_budget:
   max_features: 30
 
 feature_list:
-  # 5 waveform-shape families x (median, IQR) x (aggregated already across
-  # cycles+channels, so each family contributes exactly 2 columns) = 10
-  # columns, well under the 30 cap, leaving headroom for the harmonic profile
-  # (5 harmonics x 2 agg stats = 10, one NaN'd per subject) = 20 total.
-  - harmonic_amplitude_profile_h1_median
-  - harmonic_amplitude_profile_h1_iqr
+  # phase_4.md Task B: harmonic_amplitude_profile_h1_median/h1_iqr removed
+  # (2026-08-10). Harmonic 1 normalised to itself is exactly 1.0/0.0 for
+  # every cycle, always -- tautologically constant, not a real feature.
+  # Declared count is now 18, not 20. This does not require re-running the
+  # primary CV: removing two exactly-constant columns cannot change an L2
+  # logistic regression's fit (Phase 3's feature-stability table already
+  # showed 0% selection frequency for both). See feature_dictionary.md and
+  # reports/phase4_final_report.md's defects annex.
+  #
+  # 5 waveform-shape families x (median, IQR) = 10 columns, plus the
+  # harmonic profile (now h2..h5, 4 harmonics x 2 agg stats = 8, one NaN'd
+  # per subject) = 18 total.
   - harmonic_amplitude_profile_h2_median
   - harmonic_amplitude_profile_h2_iqr
   - harmonic_amplitude_profile_h3_median

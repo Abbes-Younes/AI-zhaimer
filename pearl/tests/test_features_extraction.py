@@ -68,3 +68,31 @@ def test_fifth_harmonic_excluded_index_does_not_associate_with_group():
     contingency = pd.crosstab(df["group"], df["excluded_index"])
     _, p, _, _ = stats.chi2_contingency(contingency)
     assert p > 0.01  # group-independent IAF must not show a spurious association
+
+
+from pearl_features.features import assert_no_constant_features, assert_missingness_below_threshold
+
+
+def test_assert_no_constant_features_catches_zero_variance_column():
+    df = pd.DataFrame({"a": [1.0, 2.0, 3.0], "b": [1.0, 1.0, 1.0]})
+    with pytest.raises(AssertionError, match="b"):
+        assert_no_constant_features(df)
+
+
+def test_assert_no_constant_features_passes_when_none_constant():
+    df = pd.DataFrame({"a": [1.0, 2.0, 3.0], "b": [4.0, 5.0, 6.0]})
+    assert_no_constant_features(df)  # no raise
+
+
+def test_assert_missingness_below_threshold_flags_high_missingness_column():
+    df = pd.DataFrame({"a": [1.0, None, None, None], "b": [1.0, 2.0, 3.0, 4.0]})
+    flagged = assert_missingness_below_threshold(df, threshold=0.5)
+    assert "a" in flagged and "b" not in flagged
+
+
+def test_declared_feature_list_has_no_h1_and_exactly_18_entries():
+    """phase_4.md Task B: h1_median/h1_iqr removed (tautologically constant)."""
+    cfg = load_features_config()
+    assert len(cfg["feature_list"]) == 18
+    assert "harmonic_amplitude_profile_h1_median" not in cfg["feature_list"]
+    assert "harmonic_amplitude_profile_h1_iqr" not in cfg["feature_list"]

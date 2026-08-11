@@ -68,6 +68,21 @@ def aggregate_channels(per_channel: dict[str, dict]) -> dict:
     return {"median": float(np.median(medians)), "iqr": float(q75 - q25)}
 
 
+def assert_no_constant_features(df) -> None:
+    """phase_4.md Task B: no declared feature may be constant across the
+    cohort (the h1 defect this test exists to catch)."""
+    constant_cols = [c for c in df.columns if df[c].dropna().nunique() <= 1]
+    assert not constant_cols, f"constant (zero-variance) declared features: {constant_cols}"
+
+
+def assert_missingness_below_threshold(df, threshold: float = 0.5) -> dict:
+    """Returns {column: missing_frac} for every column exceeding threshold.
+    Does not raise -- missingness is allowed if flagged in the feature
+    dictionary (the h5 defect this test exists to surface, not block)."""
+    fracs = df.isna().mean()
+    return {c: float(f) for c, f in fracs.items() if f > threshold}
+
+
 def waveform_asymmetry(cycle: np.ndarray) -> tuple[float, float]:
     """Rise-decay time ratio and peak-trough sharpness ratio on a broadband cycle."""
     peak_idx = int(np.argmax(cycle))
@@ -213,6 +228,12 @@ def compute_subject_features(subject: str, cfg: dict, iaf_hz: float,
 
     out = {}
     for h in range(1, n_h + 1):
+        if h == 1:
+            # harmonic 1 normalised to itself is exactly 1.0/0.0 (median/iqr)
+            # for every cycle, always -- tautologically constant, not a real
+            # feature. Declared as such in phase_4.md Task B; dropped here
+            # rather than emitted and later ignored by the model.
+            continue
         agg = aggregate_channels(per_channel_h[h])
         out[f"harmonic_amplitude_profile_h{h}_median"] = agg["median"]
         out[f"harmonic_amplitude_profile_h{h}_iqr"] = agg["iqr"]
