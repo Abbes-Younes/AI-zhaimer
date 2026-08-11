@@ -182,7 +182,12 @@ def fit_and_exclude_ica(raw: mne.io.BaseRaw, cfg: dict,
     import mne.preprocessing as pp
 
     ica_cfg = cfg.get("ica", {})
-    n_comp = int(ica_cfg.get("n_components", 30))
+    _n_comp_raw = ica_cfg.get("n_components", 30)
+    # MNE's ICA accepts n_components as an int (fixed component count) or a
+    # float in (0, 1) (explained-variance-ratio selection) -- forcing
+    # int(...) here used to silently truncate e.g. 0.99 -> 0 (phase_5.md
+    # §0b's ICA n_components re-evaluation needs the float form to work).
+    n_comp = float(_n_comp_raw) if isinstance(_n_comp_raw, float) else int(_n_comp_raw)
     threshold = float(ica_cfg.get("exclude_threshold", 0.8))
     method = ica_cfg.get("method", "infomax")
     rs = int(ica_cfg.get("random_state", 42))
