@@ -444,15 +444,13 @@ def process_subject_task(subject: str, task: str, cfg: dict) -> dict:
         native_sfreq = mne.io.read_raw_brainvision(
             read_vhdr, preload=False, verbose="ERROR").info["sfreq"]
 
-        # 2. Read + montage + average reference
+        # 2. Read + montage (reference NOT set yet — see step 5)
         raw = mne.io.read_raw_brainvision(read_vhdr, preload=True, verbose="ERROR")
         raw.set_montage(montage_mod.build_montage(read_vhdr))
     finally:
         for p in repair_paths:
             p.unlink(missing_ok=True)
     original_ref = _vhdr_reference(paths["vhdr"])
-    raw.set_eeg_reference("average", projection=bool(cfg.get("reference", {}).get("projection", True)))
-    raw.apply_proj()
 
     # 3. High-pass 0.5 Hz (zero-phase FIR — waveform-shape safe). Done BEFORE
     #    bad-channel detection: the raw data is DC-coupled (hardware low-cutoff
@@ -463,14 +461,23 @@ def process_subject_task(subject: str, task: str, cfg: dict) -> dict:
                phase=hp.get("phase", "zero"), fir_design=hp.get("fir_design", "firwin"),
                verbose="ERROR")
 
-    # 4. Bad channels → interpolate (occipital concentration = exclusion flag)
+    # 4. Bad channels → interpolate (occipital concentration = exclusion flag).
+    #    Runs BEFORE referencing (phase_5.md §0a fix): detection/interpolation
+    #    must happen on the original FCz-referenced data, not the average
+    #    reference, so a bad channel cannot contaminate the reference signal
+    #    used to detect it or any other channel.
     occ = set(cfg.get("qc", {}).get("occipital_channels", []))
     bad_names, occ_bads = detect_bad_channels(raw, cfg, occ)
     if bad_names:
         raw.info["bads"] = bad_names
         raw.interpolate_bads(reset_bads=True, verbose="ERROR")
 
-    # 5. Anti-alias + resample to the task's target rate (from config)
+    # 5. Average reference, now over the clean (post-interpolation) channel
+    #    set (moved down from step 2 — phase_5.md §0a).
+    raw.set_eeg_reference("average", projection=bool(cfg.get("reference", {}).get("projection", True)))
+    raw.apply_proj()
+
+    # 6. Anti-alias + resample to the task's target rate (from config)
     target = target_sfreq(cfg, task)
     anti_alias = float(cfg["filters"]["anti_alias_factor"]) * target / 2
     if anti_alias < native_sfreq / 2:
@@ -478,7 +485,7 @@ def process_subject_task(subject: str, task: str, cfg: dict) -> dict:
                    fir_design="firwin", verbose="ERROR")
     raw.resample(target, npad="auto", verbose="ERROR")
 
-    # 6. Line-noise removal (zap_line if available, else ≤1 Hz FIR notch)
+    # 7. Line-noise removal (zap_line if available, else ≤1 Hz FIR notch)
     ln_cfg = cfg["line_noise"]
     ln_before = _line_noise_index(raw)
     ln_method = "narrow_notch_fir"
@@ -492,11 +499,11 @@ def process_subject_task(subject: str, task: str, cfg: dict) -> dict:
                          method="fir", phase="zero", verbose="ERROR")
     ln_after = _line_noise_index(raw)
 
-    # 7. ICA (fit on 1 Hz copy, apply to 0.5 Hz data)
+    # 8. ICA (fit on 1 Hz copy, apply to 0.5 Hz data)
     excluded_idx = _excluded_classes_idx(cfg)
     ica, excluded, labels, labeling = fit_and_exclude_ica(raw, cfg, excluded_idx)
 
-    # 8. QC facts computed on the final signal
+    # 9. QC facts computed on the final signal
     iaf_cfg = cfg.get("iaf", {})
     occ_picks = mne.pick_channels(raw.ch_names, include=iaf_cfg.get("channels", []))
     excerpt, iaf_window = select_iaf_excerpt(raw, cfg, task)
@@ -508,7 +515,7 @@ def process_subject_task(subject: str, task: str, cfg: dict) -> dict:
         raw, float(art_cfg.get("peak_v", 1.5e-4)),
         float(art_cfg.get("window_s", 1.0)))
 
-    # 9. Write derivative + ICA solution + provenance sidecar
+    # 10. Write derivative + ICA solution + provenance sidecar
     out_dir = PREPROC_DIR / subject / "eeg"
     out_dir.mkdir(parents=True, exist_ok=True)
     stem = f"{subject}_task-{task}"
