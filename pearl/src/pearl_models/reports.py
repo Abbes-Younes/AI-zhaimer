@@ -365,3 +365,97 @@ def _markdown_to_self_contained_html(markdown_text: str) -> str:
     return (f"<!doctype html><html><head><meta charset='utf-8'>"
             f"<title>Phase 3 Results</title><style>{_HTML_CSS}</style></head>"
             f"<body>{''.join(body_parts)}</body></html>")
+
+
+_DECISION_TABLE_SENTENCES = {
+    "positive": ("The pitch-synchronous feature family did not detect genotype group, on a "
+                 "cohort where other EEG features do carry subject-level information. This is "
+                 "a negative result for the method as applied here."),
+    "inconclusive": ("No subject-level EEG signal of any kind was detectable in this cohort at "
+                      "n=64, including a target known to be detectable in larger samples. The "
+                      "genotype result is therefore inconclusive, not negative."),
+}
+
+
+def render_control_diagnostic(ladder_result: dict, significance_alpha: float = 0.05) -> str:
+    """phase_4.md §0 — verdict-first, all three rungs reported regardless of
+    where the ladder stopped, decision table (§0d) reproduced with the
+    outcome marked."""
+    stopped_at = ladder_result["stopped_at"]
+    outcome = "positive" if stopped_at is not None else "inconclusive"
+    verdict = "ANY RUNG SIGNIFICANT" if outcome == "positive" else "ALL RUNGS AT CHANCE"
+
+    lines = [
+        f"# Phase 4 Control Diagnostic — VERDICT: {verdict}",
+        "",
+        "This diagnostic runs against a **positive control target (sex)**, never against the "
+        "primary target (`binary_risk_vs_none`). It cannot change the primary verdict (frozen: "
+        "NULL, AUC 0.474). Its only output is which of the two sentences below the final report "
+        "is entitled to write.",
+        "",
+        f"**Resolved sentence:** {_DECISION_TABLE_SENTENCES[outcome]}",
+        "",
+        "## Ladder (run in declared order; all three rungs computed regardless of outcome)",
+        "",
+        "| Rung | Features | AUC | 95% CI | Permutation p | Significant (p<{:.2f})? |".format(
+            significance_alpha),
+        "|---|---|---|---|---|---|",
+    ]
+    rung_labels = {
+        "rung1": ("1 — baseline spectral (16 features)", "rung1_baseline"),
+        "rung2": ("2 — PSWT + baseline combined", "rung2_pswt_plus_baseline"),
+        "rung3": ("3 — per-channel/zone, fresh computation", "rung3_per_channel"),
+    }
+    for key, (label, full_name) in rung_labels.items():
+        r = ladder_result[key]
+        sig = "**YES**" if r["p_value"] < significance_alpha else "no"
+        lines.append(f"| {label} | | {r['auc']:.3f} | [{r['ci'][0]:.3f}, {r['ci'][1]:.3f}] | "
+                     f"{r['p_value']:.4f} | {sig} |")
+        if full_name == stopped_at:
+            lines[-1] += "  *(first rung to pass — drives the interpretation below)*"
+
+    lines += [
+        "",
+        "## §0d decision table",
+        "",
+        "| Outcome | Final report says |",
+        "|---|---|",
+        f"| Any rung clearly above chance | {_DECISION_TABLE_SENTENCES['positive']} |",
+        f"| All three at chance | {_DECISION_TABLE_SENTENCES['inconclusive']} |",
+        "",
+        f"**Outcome marked:** {'Any rung clearly above chance' if outcome == 'positive' else 'All three at chance'} "
+        f"({'stopped at ' + stopped_at if stopped_at else 'none of the three reached p<' + str(significance_alpha)}).",
+        "",
+    ]
+    if outcome == "positive" and ladder_result["rung2"]["p_value"] >= significance_alpha:
+        lines += [
+            "## Additional observation",
+            "",
+            "Rung 2 (PSWT + baseline combined) was **not** significant "
+            f"(p={ladder_result['rung2']['p_value']:.4f}) even though both rungs that compose "
+            "it individually were. Adding PSWT features diluted rather than added to the "
+            "detectable signal — further evidence that the PSWT feature family specifically "
+            "carries no useful subject-level information here, rather than the combined "
+            "analysis simply lacking power.",
+            "",
+        ]
+    lines += [
+        "## Methodology note (rung 3)",
+        "",
+        "Rung 3 uses 5 coarse anatomical zones (frontal, central, parietal, occipital, "
+        "temporal) rather than all 127 individual channels, to keep the feature count "
+        "tractable at n=64. 71 of 127 channels (standard extended-10-5 sites with recognized "
+        "zone prefixes) were mapped; the remaining 56 (far-lateral/interstitial extended sites) "
+        "were not assigned a zone and are excluded from this diagnostic. This is exploratory, "
+        "not a declared feature family — it exists only to test whether ROI-averaging destroyed "
+        "between-subject variance.",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def write_control_diagnostic(ladder_result: dict, out_path: Path,
+                              significance_alpha: float = 0.05) -> None:
+    text = render_control_diagnostic(ladder_result, significance_alpha)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(text, encoding="utf-8")

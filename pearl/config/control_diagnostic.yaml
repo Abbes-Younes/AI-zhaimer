@@ -1,0 +1,20 @@
+# pearl/config/control_diagnostic.yaml — phase_4.md §0. Declared before any
+# rung runs. The `target` is the ONLY sanctioned target for this module —
+# enforced in code (pearl_models.control_diagnostic.ALLOWED_TARGETS), not
+# just here. Running this against binary_risk_vs_none would invalidate the
+# entire Phase 3 result.
+target: sex
+
+rungs:
+  - name: rung1_baseline
+    description: "16 spectral baseline features (features_baseline.csv, rest-task columns)"
+  - name: rung2_pswt_plus_baseline
+    description: "PSWT (18, post-Task-B) + baseline spectral combined"
+  - name: rung3_per_channel
+    description: "Per-channel band power + 1/f, fresh computation, no ROI averaging"
+
+# Significance criterion for "clearly above chance" (phase_4.md §0c/§0d
+# decision table) -- the permutation p-value, same as everywhere else in
+# this project (Phase 2 gate, Phase 3 primary/secondary), not an ad hoc
+# CI-lower-bound rule.
+significance_alpha: 0.05
