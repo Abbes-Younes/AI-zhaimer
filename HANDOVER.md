@@ -91,14 +91,63 @@ discussed, rather than assuming any of it was already included.
   and everything already tracked in git (`pearl/reports/`, `pearl/config/`,
   all code).
 
+## Phase 5 (2026-08-11/12) — closing-the-gap attempt, added after this document was first written
+
+Client-authorized second attempt, explicitly separate from and never
+superseding the Phase 1-4 null above. Four stages, each checkpointed
+before the next began — specs at repo root (`phase_5.md` = Stage 1,
+`phase_5_stage2.md`, `phase_5_stage3.md`, `phase_5_stage4.md`), results in
+`pearl/reports/phase5_final_report.md` (start there).
+
+**Headline: the primary result flipped from NULL (original, AUC 0.474) to
+a marginal, fragile POSITIVE (AUC 0.651, p=0.041) after fixing two real
+preprocessing bugs.** Read `pearl/reports/phase5_stage3_checkpoint.md`
+before citing this number anywhere — it documents four independent reasons
+this is not yet a validated finding (marginal p-value, chance-crossing CI,
+high sensitivity to a 5-subject cohort change, no corroboration from
+related comparisons), and corrects stale narrative text that shipped
+unmodified in the original Phase 3 report/model-card code (written
+assuming a null result, never adapted to a positive one).
+
+**Both the original null and Phase 5's result must be reported together to
+any stakeholder** — the original Phase 1-4 derivative trees, reports, and
+model are preserved byte-for-byte at `*_frozen/`-suffixed paths; Phase 5's
+outputs live under `phase5_stage*`/`*_stage3`-prefixed paths. Nothing was
+overwritten.
+
+**Deferred sizing for whoever continues (per `phase5_stage3_checkpoint.md` §5):**
+
+| Item | Rough size | Why deferred |
+|---|---|---|
+| Single-variable re-run (reference-order fix alone, ICA fix alone) | A few hours: no new download, re-run of the already-built pipeline twice more with one change isolated each time | Stage 1 changed both at once; Stage 3's positive result can't be attributed to either specifically without this |
+| Independent replication on a new, larger sample | Out of scope for this dataset entirely — would need new data collection or a different cohort | The 5-subject swap within the same 79-subject dataset that flipped the result is not independent replication |
+| Track B Sternberg features (encoding/retrieval TFA) against the primary target | New, separately-declared scope | Extracted in Stage 2 but never validated against anything — no benchmark exists for Sternberg specifically |
+| Re-containerization for Stage 3's model | A few hours, low risk if done carefully | Explicitly deferred in Stage 4 — the existing container still serves the original frozen Phase 3 model, which is what `INSTALL.md`/`RUNBOOK.md` currently document |
+
+**Known unfixed code gap** (not a data problem, a process risk for any
+future re-run): several `pearl_preproc`/`pearl_features`/`pearl_models`
+report-writing functions use hardcoded output paths shared with the
+original Phase 1-4 artifacts, and some hardcode narrative text describing
+a specific expected result. Re-running them silently overwrites the
+original files in place and can produce factually wrong prose if the new
+result differs from what the text assumed. Worked around manually
+(archive-before-running, rename-after) at every stage of Phase 5 — not
+fixed in the code itself. Fix properly before any Phase 6.
+
 ## If you resume this project
 
 Read, in this order:
 
-1. **`report.md`** — the running engineering status report. Start here for
-   "what happened and why," not the code.
-2. **The relevant `phase_N.md`** for whatever you're picking up — each spec
+1. **`report.md`** — the running engineering status report for Phases 0-4.
+   Start here for "what happened and why," not the code.
+2. **`pearl/reports/phase5_final_report.md`** — if Phase 5 is relevant to
+   what you're picking up, read this before `report.md`'s Phase 3/4
+   sections, since it changes what the primary result actually is.
+3. **The relevant `phase_N.md`** for whatever you're picking up — each spec
    encodes hard-won decisions (bug root causes, config choices, exclusion
    rules) that aren't visible in the code alone.
-3. **`pearl/reports/provenance_chain.md`** — before trusting any number,
-   confirm you're looking at the run that actually produced it.
+4. **`pearl/reports/provenance_chain.md`** — before trusting any number,
+   confirm you're looking at the run that actually produced it. (Note:
+   this predates Phase 5 and does not yet cover the Stage 3 model —
+   `data/derivatives/models_stage3/model_card_corrected.md` has Phase 5's
+   provenance in the meantime.)
