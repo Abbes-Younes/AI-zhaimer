@@ -77,6 +77,20 @@ def _cv_mean_auc(X: np.ndarray, y: np.ndarray, n_splits: int, n_repeats: int, se
     return (float(np.mean(aucs)) if aucs else 0.5), n_selected_all
 
 
+def _determine_verdict(observed: float, p_value: float) -> str:
+    """Significance-based, not a raw point-estimate threshold: a point
+    estimate above the prior baseline means nothing on its own at this N
+    (phase_4.md's own self-caught lesson -- an unjustified CI-lower-bound
+    threshold gave the wrong verdict there for the same reason). "improved"
+    requires both a higher point estimate AND p < 0.05 against this
+    procedure's own permutation null."""
+    if observed > PRIOR_SIMPLE_BASELINE_AUC and p_value < 0.05:
+        return "improved"
+    if observed < PRIOR_SIMPLE_BASELINE_AUC and p_value < 0.05:
+        return "worse"
+    return "not_significant"
+
+
 def _load_msit_tfa_matrix() -> tuple[np.ndarray, np.ndarray, list[str], int]:
     from pearl_features.paths import FEATURES_DIR
 
@@ -121,12 +135,7 @@ def run(n_splits: int = 5, n_repeats: int = 10, n_permutations: int = 1000,
         boot_aucs.append(auc_b)
     ci_low, ci_high = (np.percentile(boot_aucs, [2.5, 97.5]) if boot_aucs else (observed, observed))
 
-    if observed > PRIOR_SIMPLE_BASELINE_AUC + 0.02:
-        verdict = "improved"
-    elif observed < PRIOR_SIMPLE_BASELINE_AUC - 0.02:
-        verdict = "worse"
-    else:
-        verdict = "unchanged"
+    verdict = _determine_verdict(observed, p_value)
 
     return {
         "verdict": verdict,

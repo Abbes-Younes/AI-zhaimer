@@ -13,9 +13,19 @@ from pearl_features.benchmark_diagnostic import (
     MSIT_TFA_PREFIX,
     PRIOR_SIMPLE_BASELINE_AUC,
     PUBLISHED_BENCHMARK_AUC,
+    _determine_verdict,
     _load_msit_tfa_matrix,
     run,
 )
+
+
+def test_determine_verdict_requires_significance_not_just_a_higher_point_estimate():
+    # phase_4.md's own self-caught lesson: a point estimate above the prior
+    # baseline with a non-significant p-value must NOT read as "improved".
+    assert _determine_verdict(observed=0.546, p_value=0.315) == "not_significant"
+    assert _determine_verdict(observed=0.55, p_value=0.01) == "improved"
+    assert _determine_verdict(observed=0.30, p_value=0.01) == "worse"
+    assert _determine_verdict(observed=0.30, p_value=0.5) == "not_significant"
 
 
 def test_run_has_no_target_or_feature_source_parameter():
