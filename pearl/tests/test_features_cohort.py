@@ -1,6 +1,6 @@
 import pandas as pd
 
-from pearl_features.cohort import per_task_cohort, rest_cohort_n
+from pearl_features.cohort import included_subjects_for_task, per_task_cohort, rest_cohort_n
 
 
 def _qc(rows):
@@ -37,3 +37,24 @@ def test_rest_cohort_n_counts_included_rest_rows_only():
     ])
     out = per_task_cohort(qc)
     assert rest_cohort_n(out) == 2
+
+
+def test_included_subjects_for_task_is_task_name_agnostic():
+    # phase_5_stage2.md Track A: sternberg uses the identical rule as
+    # rest/msit, no task-specific special-casing.
+    qc = _qc([
+        ("sub-01", "rest", "pass"),
+        ("sub-01", "sternberg", "pass"),
+        ("sub-02", "sternberg", "fail"),
+        ("sub-03", "msit", "pass"),
+    ])
+    out = per_task_cohort(qc)
+    assert included_subjects_for_task(out, "rest") == {"sub-01"}
+    assert included_subjects_for_task(out, "sternberg") == {"sub-01"}
+    assert included_subjects_for_task(out, "msit") == {"sub-03"}
+
+
+def test_included_subjects_for_task_accepts_task_prefixed_spelling():
+    qc = _qc([("sub-04", "task-sternberg", "warn")])
+    out = per_task_cohort(qc)
+    assert included_subjects_for_task(out, "sternberg") == {"sub-04"}

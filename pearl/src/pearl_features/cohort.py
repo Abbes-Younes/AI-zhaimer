@@ -35,6 +35,14 @@ def rest_cohort_n(per_task: pd.DataFrame) -> int:
     return int((is_rest & per_task["included"]).sum())
 
 
+def included_subjects_for_task(per_task: pd.DataFrame, task: str) -> set[str]:
+    """Subjects whose (subject, task) row passed the per-task QC rule —
+    task-name-agnostic, used identically for rest/msit/sternberg (phase_5.md
+    §0c's own genericity requirement, extended to Phase 2's cohort logic)."""
+    is_task = per_task["task"].isin([task, f"task-{task}"])
+    return set(per_task[is_task & per_task["included"]]["subject"])
+
+
 def write_cohort_csv(per_task: pd.DataFrame, out_path: Path) -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     per_task.to_csv(out_path, index=False)

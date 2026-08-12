@@ -30,7 +30,7 @@ def write_outputs(pswt_rows: dict, baseline_rows: dict, cycle_stats_rows: list[d
 
 
 def run(run_id: str | None = None) -> dict:
-    from pearl_features.cohort import load_qc_metrics, per_task_cohort
+    from pearl_features.cohort import load_qc_metrics, per_task_cohort, included_subjects_for_task
     from pearl_features.features import load_features_config, compute_subject_features
     from pearl_features.baseline import compute_subject_baseline
     from pearl_features.epoching import load_eyes_closed_continuous, reject_artifact_segments
@@ -43,10 +43,9 @@ def run(run_id: str | None = None) -> dict:
     cfg = load_features_config()
     qc = load_qc_metrics()
     per_task = per_task_cohort(qc)
-    rest_included = set(per_task[(per_task["task"].isin(["rest", "task-rest"])) &
-                                  per_task["included"]]["subject"])
-    msit_included = set(per_task[(per_task["task"].isin(["msit", "task-msit"])) &
-                                  per_task["included"]]["subject"])
+    rest_included = included_subjects_for_task(per_task, "rest")
+    msit_included = included_subjects_for_task(per_task, "msit")
+    sternberg_included = included_subjects_for_task(per_task, "sternberg")
 
     pswt_rows, baseline_rows, cycle_stats_rows = {}, {}, []
     for subject in sorted(rest_included):
@@ -67,11 +66,21 @@ def run(run_id: str | None = None) -> dict:
 
         if subject in msit_included:
             try:
-                msit_raw = mne_read_msit(subject)
+                msit_raw = mne_read_task_continuous(subject, "msit")
                 msit_baseline = compute_subject_baseline(
                     msit_raw, cfg["roi_channels"], iaf_hz, float(qc_row["alpha_peak_height_db"]),
                     prefix="msit_")
                 baseline.update(msit_baseline)
+            except FileNotFoundError:
+                pass
+
+        if subject in sternberg_included:
+            try:
+                sternberg_raw = mne_read_task_continuous(subject, "sternberg")
+                sternberg_baseline = compute_subject_baseline(
+                    sternberg_raw, cfg["roi_channels"], iaf_hz, float(qc_row["alpha_peak_height_db"]),
+                    prefix="sternberg_")
+                baseline.update(sternberg_baseline)
             except FileNotFoundError:
                 pass
 
@@ -93,15 +102,16 @@ def run(run_id: str | None = None) -> dict:
             "gate_verdict": gate_result["verdict"]}
 
 
-def mne_read_msit(subject: str):
-    """Loads the MSIT continuous derivative directly (no eyes-closed window —
-    that concept is rest-only). Label-blind: same PREPROC_DIR convention as
+def mne_read_task_continuous(subject: str, task: str):
+    """Loads a task's continuous derivative directly (no eyes-closed window —
+    that concept is rest-only, so this path serves MSIT/Sternberg, not rest).
+    Label-blind: same PREPROC_DIR convention as
     epoching.load_eyes_closed_continuous."""
     import mne
 
     from pearl_preproc.paths import PREPROC_DIR
 
-    fif_path = PREPROC_DIR / subject / "eeg" / f"{subject}_task-msit_desc-preproc_eeg.fif"
+    fif_path = PREPROC_DIR / subject / "eeg" / f"{subject}_task-{task}_desc-preproc_eeg.fif"
     if not fif_path.exists():
         raise FileNotFoundError(fif_path)
     return mne.io.read_raw_fif(fif_path, preload=True, verbose=False)
