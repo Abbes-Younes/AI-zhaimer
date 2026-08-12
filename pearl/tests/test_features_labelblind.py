@@ -1,14 +1,19 @@
 """Label blindness for pearl_features (phase_2.md §2, extending phase_1.md §2a).
 
-Only confound_gate.py is sanctioned to touch group labels, and only to measure
-contamination (phase_2.md §1) — it never feeds labels into feature extraction.
+confound_gate.py (phase_2.md §1, contamination floor) and
+benchmark_diagnostic.py (phase_5_stage2.md §0c, reports/phase5_stage2_plan_frozen.md
+§4: does Track B's richer msit_tfa_* family reproduce the published MSIT
+benchmark better than the prior simple baseline -- never a claim about
+binary_risk_vs_none as this project's primary target) are the only modules
+sanctioned to touch group labels. Neither feeds labels into feature
+extraction.
 """
 from __future__ import annotations
 
 from pathlib import Path
 
 SRC = Path(__file__).resolve().parent.parent / "src" / "pearl_features"
-SANCTIONED = {"confound_gate.py"}
+SANCTIONED = {"confound_gate.py", "benchmark_diagnostic.py"}
 FORBIDDEN = [
     "client_groups", "cohort_definition", "genotype", "final_include",
     "A_P_plus", "A_P_minus", "risk_vs_none", "pearl_audit",

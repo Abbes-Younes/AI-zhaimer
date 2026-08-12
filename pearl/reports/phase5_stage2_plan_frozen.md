@@ -165,3 +165,19 @@ sanctioned label-touching module, code-enforced to run only this question.
   Phase 1's "raw data must never be revisited" contract for anything beyond
   locating trial boundaries already present in the BIDS-standard events
   file shipped with each recording.
+
+---
+
+## Amendment 1 — verified before any Track B code was written
+
+The data-contract line above assumed raw `events.tsv` would need reading.
+Checked before implementing: `mne.io.read_raw_brainvision`'s `.vmrk` parse
+is preserved as `raw.annotations` on the already-saved preprocessed `.fif`
+derivative (confirmed on `sub-01`'s Sternberg derivative: 389 annotations,
+descriptions `Stimulus/S {1,2,3,4,10,11,12}`, onsets in the derivative's own
+time base). **Track B reads epoch boundaries from
+`raw.annotations` on the existing Stage 1 `.fif` derivatives — raw data is
+never reopened for any of the 79 subjects beyond the two already retained
+for other debugging.** This is a strictly narrower data footprint than
+originally declared, not a broadening; recorded here so the actual data
+source is traceable to what was verified.
