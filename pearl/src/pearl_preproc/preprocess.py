@@ -494,10 +494,11 @@ def process_subject_task(subject: str, task: str, cfg: dict,
         overwrite_existing=overwrite_existing, live_dir=_live_dir)
 
     # 1. Triplet validation (orphaned .vhdr = silent corruption). A stale
-    #    pre-BIDS DataFile/MarkerFile name that still resolves to a
-    #    consistent canonical sibling (sub-52) is tolerated but not silent —
-    #    read_vhdr points MNE at a repaired temp copy; the originals are
-    #    untouched and still what Sources[].sha256 hashes below.
+    #    pre-BIDS DataFile/MarkerFile name (sub-52) or a small header typo
+    #    (sub-29, sub-57) that still resolves to a verified canonical
+    #    sibling is tolerated but not silent — read_vhdr points MNE at a
+    #    repaired temp copy; the originals are untouched and still what
+    #    Sources[].sha256 hashes below.
     triplet = validate_triplet(paths["vhdr"])
     read_vhdr, repair_paths = (
         _write_header_repair(paths["vhdr"], triplet) if triplet["header_discrepancy"]
@@ -631,7 +632,8 @@ def process_subject_task(subject: str, task: str, cfg: dict,
             if p.exists()],
         "SourceHeaderRepair": ({
             "applied": True,
-            "reason": "vhdr/vmrk DataFile+MarkerFile carry a pre-BIDS recording stem",
+            "reason": ("vhdr/vmrk DataFile+MarkerFile do not match the canonical "
+                       "BIDS filenames (stale pre-BIDS name or a header typo)"),
             "declared_datafile": triplet["declared_datafile"],
         } if triplet["header_discrepancy"] else {"applied": False}),
         "Provenance": {

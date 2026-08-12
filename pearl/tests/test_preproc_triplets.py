@@ -141,3 +141,64 @@ def test_stale_rename_rejects_inconsistent_stems(tmp_path):
         VMRK_TMPL.format(datafile="SOMETHING_ELSE.eeg"), encoding="latin-1")
     with pytest.raises(TripletError):
         validate_triplet(d / f"{stem}.vhdr")
+
+
+def _make_typo_header_triplet(tmp_path, stem, declared_datafile, declared_markerfile,
+                               vmrk_declared_datafile=None):
+    """A .vhdr whose DataFile/MarkerFile are a small typo of the canonical
+    filename (sub-29/sub-57 case), while the canonical siblings on disk are
+    genuinely the correct pair for this recording."""
+    d = tmp_path / "eeg"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / f"{stem}.vhdr").write_text(
+        VHDR_TMPL.format(datafile=declared_datafile, markerfile=declared_markerfile),
+        encoding="latin-1")
+    (d / f"{stem}.eeg").write_bytes(b"\x00" * 64)
+    (d / f"{stem}.vmrk").write_text(
+        VMRK_TMPL.format(datafile=vmrk_declared_datafile or f"{stem}.eeg"),
+        encoding="latin-1")
+    return d / f"{stem}.vhdr"
+
+
+def test_header_typo_dropped_char_resolves_to_siblings(tmp_path):
+    # sub-29 real case: DataFile/MarkerFile missing an 'r' ("sternbeg").
+    stem = "sub-29_task-sternberg_eeg"
+    vhdr = _make_typo_header_triplet(
+        tmp_path, stem,
+        declared_datafile="sub-29_task-sternbeg_eeg.eeg",
+        declared_markerfile="sub-29_task-sternbeg_eeg.vmrk")
+    result = validate_triplet(vhdr)
+    assert result["eeg"].endswith(f"{stem}.eeg")
+    assert result["vmrk"].endswith(f"{stem}.vmrk")
+    assert result["header_discrepancy"] is True
+    assert result["declared_datafile"] == "sub-29_task-sternbeg_eeg.eeg"
+
+
+def test_header_typo_stray_dot_resolves_to_siblings(tmp_path):
+    # sub-57 real case: DataFile is correct; MarkerFile has a stray extra
+    # dot, and the canonical .vmrk's own DataFile field carries the same typo.
+    stem = "sub-57_task-sternberg_eeg"
+    vhdr = _make_typo_header_triplet(
+        tmp_path, stem,
+        declared_datafile=f"{stem}.eeg",
+        declared_markerfile=f"{stem}..vmrk",
+        vmrk_declared_datafile=f"{stem}..eeg")
+    result = validate_triplet(vhdr)
+    assert result["eeg"].endswith(f"{stem}.eeg")
+    assert result["vmrk"].endswith(f"{stem}.vmrk")
+    assert result["header_discrepancy"] is True
+
+
+def test_header_typo_rejects_when_only_one_field_is_a_near_miss(tmp_path):
+    # DataFile is already exactly canonical, but MarkerFile is wildly
+    # different and internally inconsistent (not a clean rename either) ->
+    # neither acceptance path is satisfied since near_miss_typo requires
+    # BOTH fields to be close, must still raise.
+    stem = "sub-99_task-rest_eeg"
+    vhdr = _make_typo_header_triplet(
+        tmp_path, stem,
+        declared_datafile=f"{stem}.eeg",  # exactly canonical
+        declared_markerfile="completely_different_name.vmrk",
+        vmrk_declared_datafile="something_else_entirely.eeg")
+    with pytest.raises(TripletError):
+        validate_triplet(vhdr)
