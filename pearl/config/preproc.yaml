@@ -29,6 +29,13 @@ filters:
 reference:
   scheme: average     # one scheme, uniformly applied, recorded per sidecar
   projection: true
+  compute_order: post_interpolation  # phase_5.md §0a fix (default): bad-channel
+                       # detect/interpolate BEFORE averaging, so a bad channel
+                       # cannot contaminate the reference. "pre_interpolation"
+                       # reproduces the original bug -- reserved for the
+                       # phase5_stage3_validation attribution diagnostic
+                       # (sparkling-launching-torvalds.md §1) only; never use
+                       # it for a live/reported run.
 
 ica:
   method: infomax     # extended infomax — the ICLabel-recommended pairing

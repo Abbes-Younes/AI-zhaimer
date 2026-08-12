@@ -466,6 +466,41 @@ def resolve_output_dir(subject: str, output_dir: Path | None, run_id_active: boo
     return live_dir
 
 
+def apply_reference_and_interpolation(raw, cfg: dict, occ: set[str]) -> tuple[list[str], int]:
+    """Runs bad-channel detection/interpolation and average referencing in
+    the order `cfg["reference"]["compute_order"]` declares, mutating `raw`
+    in place. Returns (bad_channel_names, n_occipital_bads).
+
+    Default `"post_interpolation"` is the phase_5.md §0a fix: detection/
+    interpolation runs on the original FCz-referenced data, so a bad channel
+    cannot contaminate the reference signal used to detect it or any other
+    channel. `"pre_interpolation"` reproduces the original bug -- reserved
+    for the phase5_stage3_validation attribution diagnostic
+    (sparkling-launching-torvalds.md §1) only; never use it for a live or
+    reported run.
+    """
+    proj = bool(cfg.get("reference", {}).get("projection", True))
+    compute_order = cfg.get("reference", {}).get("compute_order", "post_interpolation")
+
+    def _detect_and_interpolate():
+        bad_names, occ_bads = detect_bad_channels(raw, cfg, occ)
+        if bad_names:
+            raw.info["bads"] = bad_names
+            raw.interpolate_bads(reset_bads=True, verbose="ERROR")
+        return bad_names, occ_bads
+
+    def _reference():
+        raw.set_eeg_reference("average", projection=proj)
+        raw.apply_proj()
+
+    if compute_order == "pre_interpolation":
+        _reference()
+        return _detect_and_interpolate()
+    result = _detect_and_interpolate()
+    _reference()
+    return result
+
+
 def process_subject_task(subject: str, task: str, cfg: dict,
                          output_dir: Path | None = None,
                          overwrite_existing: bool = False) -> dict:
@@ -524,21 +559,12 @@ def process_subject_task(subject: str, task: str, cfg: dict,
                phase=hp.get("phase", "zero"), fir_design=hp.get("fir_design", "firwin"),
                verbose="ERROR")
 
-    # 4. Bad channels → interpolate (occipital concentration = exclusion flag).
-    #    Runs BEFORE referencing (phase_5.md §0a fix): detection/interpolation
-    #    must happen on the original FCz-referenced data, not the average
-    #    reference, so a bad channel cannot contaminate the reference signal
-    #    used to detect it or any other channel.
+    # 4/5. Bad-channel detection/interpolation and average referencing --
+    #    order controlled by reference.compute_order (phase5_stage3_validation
+    #    plan §1, sparkling-launching-torvalds.md: an attribution diagnostic,
+    #    never a permanent behavior switch). See apply_reference_and_interpolation.
     occ = set(cfg.get("qc", {}).get("occipital_channels", []))
-    bad_names, occ_bads = detect_bad_channels(raw, cfg, occ)
-    if bad_names:
-        raw.info["bads"] = bad_names
-        raw.interpolate_bads(reset_bads=True, verbose="ERROR")
-
-    # 5. Average reference, now over the clean (post-interpolation) channel
-    #    set (moved down from step 2 — phase_5.md §0a).
-    raw.set_eeg_reference("average", projection=bool(cfg.get("reference", {}).get("projection", True)))
-    raw.apply_proj()
+    bad_names, occ_bads = apply_reference_and_interpolation(raw, cfg, occ)
 
     # 6. Anti-alias + resample to the task's target rate (from config)
     target = target_sfreq(cfg, task)
