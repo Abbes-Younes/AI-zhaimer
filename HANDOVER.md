@@ -101,13 +101,54 @@ before the next began — specs at repo root (`phase_5.md` = Stage 1,
 
 **Headline: the primary result flipped from NULL (original, AUC 0.474) to
 a marginal, fragile POSITIVE (AUC 0.651, p=0.041) after fixing two real
-preprocessing bugs.** Read `pearl/reports/phase5_stage3_checkpoint.md`
-before citing this number anywhere — it documents four independent reasons
-this is not yet a validated finding (marginal p-value, chance-crossing CI,
-high sensitivity to a 5-subject cohort change, no corroboration from
-related comparisons), and corrects stale narrative text that shipped
-unmodified in the original Phase 3 report/model-card code (written
-assuming a null result, never adapted to a positive one).
+preprocessing bugs — and that positive result was subsequently validated
+(2026-08-13) and does not hold up. Do not deliver it as a positive
+finding.** Read `pearl/reports/phase5_stage3_validation.md` first (final
+verdict), then `pearl/reports/phase5_stage3_checkpoint.md` (the original
+four reasons for caution) before citing 0.651 anywhere. Validation added
+two more independent findings against it: resampling shows the estimate's
+center sits on the nuisance-only line with a quarter of resamples below
+chance, and isolating each of the two preprocessing fixes shows neither
+reproduces significance alone — only their specific combination on this
+specific sample does. `phase5_stage3_checkpoint.md` also corrects stale
+narrative text that shipped unmodified in the original Phase 3
+report/model-card code (written assuming a null result, never adapted to a
+positive one).
+
+## Phase 6 Stage A (2026-08-15) — the null is now BOUNDED
+
+Read `pearl/reports/phase6_bounded_null.md`. Cheap follow-up (hours, no new
+preprocessing) that closed the longest-standing ambiguity in the project.
+
+**The problem it solved:** Phase 3's sex positive control *failed* (PSWT scored
+0.465 against a 0.65 floor), so the genotype null could never be distinguished
+from "the representation discards all between-subject information." That
+ambiguity had stood since Phase 3.
+
+**What was found:** three of four already-computed representations decode sex
+significantly on the corrected preprocessing — `baseline_rest` (9 cols) 0.688
+p=0.019, `baseline_rest_msit` (16) 0.696 p=0.007, `baseline_all` (23) 0.652
+p=0.029. Only PSWT fails (0.465, p=0.62). Critically, the **9-column
+`baseline_rest` set is the exact feature set that scored 0.506 (p=0.48) on
+genotype** — so, matched on features/cohort/preprocessing/protocol, the same
+representation detects sex and detects nothing for genotype.
+
+**Delivered conclusion upgraded** from "we found nothing" to "we established what
+this dataset can and cannot support, and bounded the null." The Phase 5 verdict
+itself is unchanged, and **Stage A added zero new genotype looks** (control
+targets only; the genotype number is cited, not re-run).
+
+Also established: a detection ceiling (`reports/phase6_power_analysis.txt`) —
+MDE at 80% power is **AUC 0.693**, power against the published 0.58 benchmark is
+**20%**. And a methodological finding: `phase_6.md`'s proposed Gate 1 rule
+(CI lower bound > 0.50) is **unachievable here** — all five significant sex
+results this project has produced, including one at p=0.007, have CI lower bounds
+of 0.37–0.43, because the CV-bootstrap CI runs ~0.4 wide vs an analytic minimum
+of 0.257. Use the permutation test as the primary criterion instead.
+
+`phase_6.md`'s Stage B (representation rebuild) remains **specified but not run**
+— sized at ~10 person-days + 1.5–3 days compute, with a realistic best outcome of
+a further-strengthened bound rather than a positive finding.
 
 **Both the original null and Phase 5's result must be reported together to
 any stakeholder** — the original Phase 1-4 derivative trees, reports, and
@@ -119,7 +160,7 @@ overwritten.
 
 | Item | Rough size | Why deferred |
 |---|---|---|
-| Single-variable re-run (reference-order fix alone, ICA fix alone) | A few hours: no new download, re-run of the already-built pipeline twice more with one change isolated each time | Stage 1 changed both at once; Stage 3's positive result can't be attributed to either specifically without this |
+| ~~Single-variable re-run (reference-order fix alone, ICA fix alone)~~ | **Done, 2026-08-13** — see `pearl/reports/phase5_stage3_validation.md` | Neither fix alone reproduces significance (0.583/p=0.234 and 0.602/p=0.174); only their combination on this specific sample does |
 | Independent replication on a new, larger sample | Out of scope for this dataset entirely — would need new data collection or a different cohort | The 5-subject swap within the same 79-subject dataset that flipped the result is not independent replication |
 | Track B Sternberg features (encoding/retrieval TFA) against the primary target | New, separately-declared scope | Extracted in Stage 2 but never validated against anything — no benchmark exists for Sternberg specifically |
 | Re-containerization for Stage 3's model | A few hours, low risk if done carefully | Explicitly deferred in Stage 4 — the existing container still serves the original frozen Phase 3 model, which is what `INSTALL.md`/`RUNBOOK.md` currently document |

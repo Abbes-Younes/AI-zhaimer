@@ -1,0 +1,566 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{amsmath}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{caption}
+
+\definecolor{verdictred}{RGB}{150,30,30}
+\definecolor{verdictgreen}{RGB}{30,110,30}
+\definecolor{headergray}{RGB}{90,90,90}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=black,
+  citecolor=black,
+  urlcolor={blue!60!black},
+  pdftitle={PEARL-Neuro EEG Classification -- Final Report},
+  pdfauthor={PEARL-Neuro Analysis Team}
+}
+
+\titleformat{\section}{\large\bfseries}{\thesection}{0.6em}{}
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{0.6em}{}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{headergray} PEARL-Neuro EEG Classification -- Final Report}
+\fancyhead[R]{\small\color{headergray} \thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\newcommand{\verdict}[2]{%
+  \noindent\fbox{\parbox{\dimexpr\linewidth-2\fboxsep-2\fboxrule}{%
+  \textbf{\color{#1}#2}}}%
+}
+
+\title{\vspace{-1.5cm}PEARL-Neuro EEG Classification\\[4pt]
+\large Predicting Genetic Alzheimer's-Risk Group from Resting-State and Task EEG\\[2pt]
+\large Final Report}
+\author{Dataset: OpenNeuro \texttt{ds004796} \\ 79 EEG-imaged, genotyped subjects (of 192 genotyped total)}
+\date{Prepared 2026-08-13}
+
+\begin{document}
+\maketitle
+\thispagestyle{fancy}
+
+\begin{abstract}
+\noindent
+This report documents two attempts to classify genetic Alzheimer's-risk
+group (APOE~$\varepsilon4$ + PICALM status) from EEG, using a
+pitch-synchronous waveform-shape feature family (PSR/PSWT) evaluated
+against a conventional spectral baseline. The original analysis
+(Phases~1--4) produced a validated \textbf{null result} (AUC 0.474,
+$p=0.577$). A second attempt (Phase~5) fixed two real preprocessing bugs
+and obtained a marginal \textbf{positive result} (AUC 0.651, $p=0.041$).
+That positive result was then subjected to three independent validation
+checks -- resampling stability, single-fix attribution, and full-precision
+reproducibility -- and \textbf{did not survive}: it is statistically
+indistinguishable from a covariates-only baseline once resampled, and
+neither underlying preprocessing fix reproduces it in isolation. A final
+phase then \textbf{bounded} the null: on this same cohort and pipeline, a
+representation that successfully decodes a control target (sex, AUC 0.688,
+$p=0.019$) finds nothing for genotype (AUC 0.506, $p=0.48$), establishing
+that the measurement is sensitive enough to detect a real subject-level
+effect and that no genotype effect is present at this sample size. The
+honest conclusion of this engagement is that no reliable EEG-based
+classifier for this target emerged from this dataset, that the null is
+now bounded rather than merely inconclusive, and that the dataset's own
+hard cap (79 subjects, a detection floor of AUC 0.693 at 80\% power, no
+independent replication cohort) makes this the practical ceiling of what
+can currently be known -- not a shortfall of the analysis.
+\end{abstract}
+
+\vspace{0.3cm}
+\verdict{verdictred}{Final verdict: NOT VALIDATED. Do not deliver AUC 0.651 as a positive finding. The null is bounded, not inconclusive -- see \S 5 and \S 6.}
+\vspace{0.4cm}
+
+\tableofcontents
+
+% =====================================================================
+\section{Objective and Background}
+
+The client requested a genetic Alzheimer's-risk classifier built from EEG
+recordings in the PEARL-Neuro dataset (\texttt{ds004796}), comparing a
+custom pitch-synchronous waveform-shape feature family (PSR/PSWT) against
+a conventional spectral baseline, benchmarked against a published result
+of AUC~$\approx 0.58$ (Li et al., 2025, \textit{Sensors} 25(1):52, MSIT
+task).
+
+The dataset provides EEG and genotype data for 192 participants; only 79
+have both EEG recordings and confirmed genotype status, and this project
+uses all 79. Genetic risk group (\texttt{N} / \texttt{A\_P\_minus} /
+\texttt{A\_P\_plus}) is derived from APOE~$\varepsilon4$ carrier status
+combined with PICALM genotype, per the client's group-assignment
+convention (independently reconciled against official genotype columns in
+Phase~0).
+
+The engagement proceeded in two parts:
+
+\begin{enumerate}[label=\textbf{Part \arabic*.}, leftmargin=2.2cm]
+  \item \textbf{Phases 0--4} (original engagement): audit, preprocessing,
+        feature engineering, and modeling under a fully frozen,
+        label-blind protocol, ending in a validated null result.
+  \item \textbf{Phase 5} (client-authorized second attempt): a genuine
+        attempt to close the gap to the published benchmark by fixing
+        two preprocessing issues surfaced during Phase~1--4, followed by
+        rigorous validation of whatever result emerged.
+\end{enumerate}
+
+% =====================================================================
+\section{Data and Methods}
+
+\subsection{Dataset and cohort}
+
+\begin{itemize}[leftmargin=1.2cm]
+  \item \textbf{Source:} OpenNeuro \texttt{ds004796}, resting-state EEG
+        plus two task paradigms (MSIT, Sternberg working-memory task).
+  \item \textbf{Population:} 79 subjects with both EEG and confirmed
+        genotype. After preprocessing QC and the frozen exclusion rules,
+        the analysis cohort used in the primary comparison is
+        $n=64$ subjects in every reported condition.
+  \item \textbf{Primary target:} \texttt{binary\_risk\_vs\_none}
+        (at-risk genotype group vs.\ no-risk group) -- declared before any
+        feature existed, and never changed despite cohort size moving
+        across phases.
+\end{itemize}
+
+\subsection{Preprocessing}
+
+Standard EEG preprocessing pipeline: montage assignment, average
+referencing, band-pass filtering (0.5\,Hz high-pass, explicit anti-alias
+low-pass), 50\,Hz line-noise removal (Polish mains), automated bad-channel
+detection and interpolation, resampling, and ICA-based artifact removal
+(ICLabel-classified components: muscle, eye blink, heartbeat, line noise,
+channel noise).
+
+Every preprocessing threshold is fixed in a frozen configuration file and
+applied uniformly \emph{before} any genotype label is read (label-blind
+QC), enforced by dedicated tests that scan the codebase for any import
+path to label-bearing data outside two narrowly-scoped, audited reporting
+modules.
+
+\paragraph{Two bugs found and fixed in Phase 5.} Reviewing the original
+pipeline surfaced two real, independently-justified issues:
+
+\begin{enumerate}[leftmargin=1.2cm]
+  \item \textbf{Reference-order bug.} The average EEG reference was
+        computed \emph{before} bad-channel detection and interpolation,
+        letting a noisy channel contaminate the reference signal used by
+        every other channel. Fixed by reordering the pipeline so
+        interpolation happens first.
+  \item \textbf{ICA component-count re-evaluation.} The original pipeline
+        used a fixed number of ICA components (30) for every subject.
+        Comparison data showed this caused excessive component removal on
+        subjects with more bad channels. Replaced with explained-variance
+        based component selection (0.99), scaled to each subject's actual
+        post-interpolation channel rank.
+\end{enumerate}
+
+\subsection{Feature engineering}
+
+Two feature families were extracted from the resting-state eyes-closed
+window, per subject:
+
+\begin{itemize}[leftmargin=1.2cm]
+  \item \textbf{PSWT (primary):} pitch-synchronous waveform-shape
+        features per detected alpha-band cycle -- harmonic amplitude
+        profile (2nd--5th harmonics), harmonic-to-interharmonic ratio,
+        cycle-to-cycle variability, period variability, rise-decay ratio,
+        peak-trough sharpness ratio (18 features total).
+  \item \textbf{Baseline spectral (comparison):} conventional
+        band-power/alpha-peak features over the same channels and window
+        (23 features total), used as the point of comparison against the
+        published benchmark's spectral approach.
+\end{itemize}
+
+A richer multitaper time-frequency-area (TFA) feature family was also
+built and tested in Phase~5 \emph{only} against the benchmark-reproduction
+question (never against the primary target directly, to avoid conflating
+two separate questions in one modeling attempt); it did not close the
+benchmark gap (AUC 0.546 vs.\ 0.459 prior, $p=0.315$, not significant).
+
+\subsection{Modeling and evaluation protocol}
+
+A single protocol, declared before any label was joined and never changed
+after seeing a result:
+
+\begin{itemize}[leftmargin=1.2cm]
+  \item \textbf{Model:} L2-regularized logistic regression (declared as
+        primary before any result existed; tree ensembles, gradient
+        boosting, and neural networks were explicitly excluded from the
+        primary analysis).
+  \item \textbf{Cross-validation:} 5-fold $\times$ 10 repeats,
+        group-stratified, pooled out-of-fold AUC across repeats.
+  \item \textbf{Inference:} full-pipeline permutation test (1000
+        permutations) for the $p$-value, subject-level bootstrap (2000
+        resamples) for the 95\% confidence interval.
+  \item \textbf{Reference lines:} chance (0.5), a QC-metrics-only
+        classifier (contamination-floor diagnostic, not a result), a
+        nuisance-only classifier (age/sex/education/BDI/SES + QC
+        covariates, no EEG features), and the published benchmark (0.58).
+  \item \textbf{Stopping rule:} a maximum of three feature families,
+        declared up front, to prevent post-hoc family-shopping.
+\end{itemize}
+
+% =====================================================================
+\section{Results: Original Analysis (Phases 1--4)}
+
+\begin{table}[h]
+\centering
+\caption{Phase 3 primary result.}
+\begin{tabular}{lc}
+\toprule
+Metric & Value \\
+\midrule
+AUC & 0.474 \\
+95\% CI & [0.266, 0.702] \\
+Permutation $p$ & 0.577 \\
+Cohort & $n=64$ (39 no-risk / 25 at-risk) \\
+Verdict & \textbf{NULL} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Two positive controls were run, both on the Stage~5 corrected-preprocessing
+cohort (the original, bug-present preprocessing scored 0.830/0.486/0.459 on
+the same three checks, respectively -- consistently close, so preprocessing
+is not the source of the pattern below). \textbf{Eyes-open vs.\
+eyes-closed} (within-subject, strong control) passed clearly: AUC 0.849
+against a 0.80 floor -- the features correctly measure alpha waveform
+shape and generalise \emph{within} a subject. \textbf{Sex classification}
+(cross-subject control) \emph{failed}: AUC 0.465 against a declared 0.65
+floor -- sex is reliably decodable from resting EEG in adequately powered
+samples, so this failure means the feature representation, as built, does
+not demonstrably generalise \emph{across} subjects for a genuinely
+decodable trait. This does not mean the pipeline is broken (1a passing
+rules that out), but it does mean the genotype null cannot be
+distinguished from ``this representation discards the between-subject
+information needed to detect any cross-subject effect'' -- a real
+limitation of what has been validated, not just of what was found.
+Benchmark reproduction on the MSIT task landed at chance (AUC 0.490), a
+characterized but unresolved gap attributed to reference-order and ICA
+issues (addressed in Phase~5) and a feature-richness gap.
+
+% =====================================================================
+\section{Results: Phase 5 Attempt and Its Validation}
+
+\subsection{The positive result}
+
+Re-running Phase 3's exact frozen methodology on Phase 5's corrected
+preprocessing (both fixes applied) produced a verdict flip:
+
+\begin{table}[h]
+\centering
+\caption{Original vs.\ Phase 5 (both preprocessing fixes applied).}
+\begin{tabular}{lcc}
+\toprule
+ & Original (Phase 3) & Phase 5 (corrected preprocessing) \\
+\midrule
+AUC & 0.474 & 0.651 \\
+95\% CI & [0.266, 0.702] & [0.353, 0.764] \\
+Permutation $p$ & 0.577 & 0.041 \\
+Verdict & NULL & POSITIVE (marginal) \\
+Cohort & $n=64$ (39/25) & $n=64$ (38/26), 5 subjects different \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Four reasons for caution were flagged immediately, before any further
+validation work: $p=0.041$ is barely under the 0.05 threshold; the 95\%
+CI's lower bound (0.353) approaches chance; the point estimate moved by
+0.177~AUC from just 5 of 64 subjects changing (a side effect of corrected
+QC, not a deliberate choice); and the result did not corroborate itself
+across related secondary comparisons (none survived correction for
+multiple comparisons).
+
+\subsection{Validation of the positive result}
+
+Three further, independent checks were run before any delivery decision.
+
+\paragraph{Stability under resampling.} The same 64-subject sample was
+resampled 325 times (175 leave-$k$-out draws, $k=2$--8; 150
+subject-level bootstrap resamples) and the pooled CV AUC recomputed each
+time.
+
+\begin{table}[h]
+\centering
+\caption{Resampling stability of the 0.651 point estimate.}
+\begin{tabular}{lccccc}
+\toprule
+Method & $n$ & 5th pct. & median & 95th pct. & \% below chance \\
+\midrule
+Leave-$k$-out & 175 & 0.531 & 0.625 & 0.715 & 1.1\% \\
+Bootstrap & 150 & 0.407 & 0.565 & 0.726 & \textbf{24.0\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The bootstrap median (0.565) sits almost exactly on the nuisance-only
+reference line (0.557) -- the resampling distribution's center shows no
+meaningful separation from ``covariates alone,'' and a full quarter of
+resamples fall below chance entirely. This is not the signature of a
+reliably-located effect.
+
+\paragraph{Single-fix attribution.} Stage 1's preprocessing changed two
+things at once. Each was isolated in a separate full preprocessing
+re-run, holding the other fix at its default.
+
+\begin{table}[h]
+\centering
+\caption{Full picture across every condition tested.}
+\begin{tabular}{lcccc}
+\toprule
+Condition & AUC & 95\% CI & $p$ & Significant? \\
+\midrule
+Original (both bugs present) & 0.474 & [0.266, 0.702] & 0.577 & No \\
+Reference-order fix alone & 0.583 & [0.324, 0.750] & 0.234 & No \\
+ICA fix alone & 0.602 & [0.315, 0.739] & 0.174 & No \\
+\textbf{Both fixes together} & \textbf{0.651} & \textbf{[0.353, 0.764]} & \textbf{0.041} & \textbf{Yes (marginal)} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Neither fix, applied alone, reproduces significance.} Only the
+specific combination, on this specific 64-subject sample, crosses
+$p<0.05$ -- a pattern more consistent with a sample-specific coincidence
+than with two real, additive biological signals.
+
+\paragraph{Reproducibility.} After restoring the production preprocessing
+tree to the both-fixes-applied state, the primary analysis was re-run at
+full statistical precision: AUC 0.6509, CI [0.353, 0.764], $p=0.0410$ --
+matching the original 0.651 to within rounding. This confirms the number
+was computed correctly; it does not, on its own, make the number
+reliable -- that question is answered by the two checks above, both of
+which argue against it.
+
+% =====================================================================
+\section{Phase 6: Bounding the Null}
+
+A null result carries an inherent ambiguity: did the analysis find nothing
+because there is nothing to find, or because the measurement was insensitive?
+Phase 3's control battery left exactly this open. The pitch-synchronous feature
+family scored \textbf{AUC 0.465 on sex} -- a \emph{failed} positive control
+against a declared floor of 0.65. Since sex is reliably decodable from resting
+EEG in adequately powered samples, that failure meant the genotype null could not
+be distinguished from a representation that simply discards all between-subject
+information.
+
+Phase 6 resolved this by testing four already-computed representations against
+the sex control, on the identical cohort, preprocessing, and cross-validation
+protocol used for the genotype analysis. \textbf{No new genotype analysis was
+performed.}
+
+\begin{table}[h]
+\centering
+\caption{Sex control across four representations ($n=64$, full precision).}
+\begin{tabular}{lccccc}
+\toprule
+Representation & Cols & AUC & 95\% CI & perm $p$ & Verdict \\
+\midrule
+\texttt{baseline\_rest} & 9 & \textbf{0.688} & [0.431, 0.816] & \textbf{0.019} & PASS \\
+\texttt{baseline\_rest\_msit} & 16 & \textbf{0.696} & [0.421, 0.826] & \textbf{0.007} & PASS \\
+\texttt{baseline\_all} & 23 & \textbf{0.652} & [0.373, 0.819] & \textbf{0.029} & PASS \\
+\texttt{pswt} & 18 & 0.465 & [0.272, 0.700] & 0.619 & FAIL \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Three of the four representations decode sex significantly.} Only the
+pitch-synchronous family fails, and it fails decisively ($p=0.62$, essentially
+chance). The cohort is not inert -- it carries subject-level information that a
+suitable representation can recover.
+
+\subsection{The bounded null}
+
+The decisive comparison holds the representation fixed and varies only the
+target. The same nine resting-state spectral features:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lccc}
+\toprule
+Target & AUC & $p$ & Outcome \\
+\midrule
+Sex (control) & \textbf{0.688} & \textbf{0.019} & Signal detected \\
+Genotype (primary) & 0.506 & 0.482 & Nothing \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Matched on features, cohort, preprocessing, and protocol, this representation
+detects a real subject-level trait and detects nothing for genotype.
+\textbf{The genotype null is therefore a statement about genotype, not an
+artifact of an insensitive measurement.} This upgrades the finding from
+\emph{inconclusive} to \emph{bounded by a demonstrated negative}.
+
+Two pre-declared verification checks passed: the \texttt{pswt} control
+reproduced the earlier result bit-exactly (0.4645 / [0.2715, 0.7000] /
+$p=0.6194$), confirming the pipeline is deterministic and the stored derivatives
+are intact; and \texttt{baseline\_rest\_msit} reproduced an earlier
+16-column result to within 0.003 across a preprocessing change.
+
+\subsection{The detection ceiling, quantified}
+
+A formal power analysis for this cohort ($n=34$ vs 30, $\alpha=0.05$) establishes
+what it can and cannot resolve:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lc}
+\toprule
+Quantity & Value \\
+\midrule
+Minimum detectable AUC at 80\% power & \textbf{0.693} \\
+Minimum detectable AUC at 90\% power & 0.720 \\
+Power to detect the published benchmark (0.58) & \textbf{20\%} \\
+Power to detect AUC 0.65 & 57\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+All three passing sex results sit at or near that 80\%-power floor (0.688,
+0.696, 0.652 against an MDE of 0.693). The cohort can \emph{just barely} resolve
+effects of that magnitude. Sex is among the most robustly encoded subject-level
+traits in resting EEG; genotype risk group is substantially subtler. This is the
+quantitative basis for the recommendation against further analysis of this
+cohort: at 20\% power against the benchmark effect, a study would fail to detect
+it four times in five even if it were real and exactly as large as published.
+
+\textbf{Limitation of this bound.} It applies to the representations tested. It
+does not prove that no representation could recover genotype signal -- only that
+the ones examined here, including one demonstrably capable of subject-level
+decoding, do not.
+
+% =====================================================================
+\section{Honest Evaluation}
+
+\verdict{verdictred}{The Stage 3 positive result (AUC 0.651) does not survive validation and should not be delivered as a positive finding.}
+
+Two independent methods -- resampling stability and single-fix
+attribution -- reach the same conclusion by different routes, which is
+stronger evidence than either alone. This pattern matches a well-known
+statistical phenomenon: underpowered studies that happen to cross a
+significance threshold systematically overstate the true effect (the
+``winner's curse''; Button et al., 2013, \textit{Nature Reviews
+Neuroscience}). A formal power analysis independently confirms this
+study's minimum detectable effect at 80\% power (Cohen's $d=0.596$) is
+\emph{larger} than the effect actually observed ($d=0.549$) -- this
+sample is below its own floor for reliable detection, and power to detect
+an effect the size of the published 0.58 benchmark was only 27\%.
+
+\subsection{What is, and is not, being claimed}
+
+\begin{itemize}[leftmargin=1.2cm]
+  \item \textbf{Not claimed:} that PEARL-Neuro EEG data contains no
+        genotype-related signal whatsoever. Absence of a validated
+        finding at this sample size is not proof of absence of an
+        effect.
+  \item \textbf{Claimed, with evidence:} that this 79-subject,
+        single-cohort dataset cannot currently support a validated
+        positive claim for this target, and that the one candidate
+        positive result obtained does not survive the standard checks a
+        credible finding must pass.
+  \item \textbf{Newly established (Phase 6):} the null is
+        \emph{bounded}, not merely inconclusive. A representation that
+        demonstrably carries subject-level information on this exact
+        cohort (sex, AUC 0.688, $p=0.019$) finds nothing for genotype
+        (AUC 0.506, $p=0.48$). The measurement is sensitive enough to
+        detect a real subject-level trait; it detects no genotype
+        effect.
+  \item \textbf{Two real engineering improvements were made} regardless
+        of the modeling outcome: the reference-order bug and the ICA
+        component-count issue are both independently justified fixes,
+        documented and tested, and are now the permanent default
+        configuration for this pipeline going forward.
+\end{itemize}
+
+% =====================================================================
+\section{Limitations}
+
+\begin{itemize}[leftmargin=1.2cm]
+  \item \textbf{Hard sample-size ceiling.} \texttt{ds004796} has exactly
+        79 EEG-imaged, genotyped subjects; all are already used. There is
+        no larger cohort to draw from within this dataset.
+  \item \textbf{No independent replication cohort exists.} This dataset
+        is, to available knowledge, the only public EEG dataset genotyped
+        for APOE/PICALM Alzheimer's-risk status at this scale -- true
+        independent replication would require new primary data
+        collection, outside this engagement's scope.
+  \item \textbf{Rest-vs-task benchmark mismatch.} The published 0.58
+        benchmark used task-state EEG (MSIT), not resting-state; this
+        project's own MSIT reproduction landed at chance, a
+        characterized but unresolved gap, not a validated comparison
+        point in either direction.
+  \item \textbf{Cohort sensitivity.} A change of only 5 subjects (a QC
+        side effect, not a deliberate resampling choice) moved the point
+        estimate by 0.177 AUC -- this small a sample is inherently
+        sensitive to exactly which subjects are included.
+\end{itemize}
+
+% =====================================================================
+\section{Recommendations}
+
+\begin{enumerate}[leftmargin=1.2cm]
+  \item \textbf{Do not deliver AUC 0.651 as a positive finding} to any
+        downstream audience (publication, product decision, funding
+        pitch) without the full validation context in this report.
+  \item \textbf{Deliver the honest characterization} of what was tried,
+        what changed, why it looked promising initially, and why it does
+        not survive scrutiny -- this is a complete and useful answer to
+        the question actually asked.
+  \item \textbf{If a definitive answer is required}, the only path
+        forward is independent data collection: a new, adequately
+        powered EEG + genotype cohort, sized using the power analysis in
+        this project (well beyond 79 subjects for an effect in the
+        0.55--0.65 AUC range).
+  \item \textbf{Retain the two preprocessing fixes} (reference-order,
+        ICA component count) as permanent pipeline improvements
+        independent of the modeling outcome -- they are correct on their
+        own merits.
+\end{enumerate}
+
+% =====================================================================
+\section{Conclusion}
+
+Fixing two real preprocessing bugs changed this project's primary result
+from a clean null to a marginal, initially promising positive. Subjecting
+that positive result to the same rigor that made the original null
+trustworthy -- resampling stability, single-variable attribution, and
+independent reproducibility checks -- showed it does not hold up.
+
+A final phase then closed the remaining ambiguity. A null is only
+interpretable if the measurement was capable of detecting something in the
+first place, and that had never been established. It now has been: on this
+exact cohort and pipeline, a representation that successfully decodes a
+control trait (sex, AUC 0.688, $p=0.019$) finds nothing whatsoever for
+genotype (AUC 0.506). The instrument works; the signal is not there.
+
+The defensible deliverable from this engagement is not a discovery, but a
+methodologically rigorous, independently corroborated answer: at 79
+subjects, in a single cohort, with no replication data available, this
+dataset does not support a validated EEG-based classifier for genetic
+Alzheimer's-risk group -- and its detection floor (AUC 0.693 at 80\%
+power, 20\% power against the published benchmark) explains why. That is a
+complete and honest answer to the question this engagement set out to
+resolve, and a quantitative specification of what a future study would
+need to do better.
+
+\vspace{0.5cm}
+\hrule
+\vspace{0.3cm}
+{\small\color{headergray}
+\noindent\textbf{Full artifact trail:} \texttt{pearl/reports/phase5\_final\_report.md},
+\texttt{pearl/reports/phase5\_stage3\_validation.md},
+\texttt{pearl/reports/phase5\_stage3\_stability.md},
+\texttt{pearl/reports/phase5\_stage1b\_reference\_order\_only.md},
+\texttt{pearl/reports/phase5\_stage1c\_ica\_only.md}, and
+\texttt{HANDOVER.md} in the project repository.
+}
+
+\end{document}

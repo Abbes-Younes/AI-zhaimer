@@ -20,3 +20,9 @@ Thumbs.db
 
 # unrelated stray file, intentionally left untracked
 /download-167-197.pdf
+
+# unrelated VS Code extension archive (not part of this project)
+kickbacks-v2.vsix
+
+# local-only Claude Code settings
+.claude/settings.local.json
