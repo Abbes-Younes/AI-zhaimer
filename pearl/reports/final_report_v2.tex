@@ -1,0 +1,371 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{amsmath}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+
+\definecolor{verdictred}{RGB}{150,30,30}
+\definecolor{headergray}{RGB}{90,90,90}
+\definecolor{boxgray}{RGB}{245,245,245}
+
+\hypersetup{colorlinks=true, linkcolor=black, citecolor=black,
+  urlcolor={blue!60!black},
+  pdftitle={PEARL-Neuro EEG Classification --- Final Report},
+  pdfauthor={PEARL-Neuro Analysis Team}}
+
+\titleformat{\section}{\large\bfseries}{\thesection}{0.6em}{}
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{0.6em}{}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{headergray} PEARL-Neuro --- Final Report (v2)}
+\fancyhead[R]{\small\color{headergray} \thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\newcommand{\keybox}[1]{%
+  \begin{center}\fcolorbox{black}{boxgray}{\parbox{0.94\linewidth}{\vspace{2pt}#1\vspace{2pt}}}\end{center}}
+
+\title{\vspace{-1.5cm}PEARL-Neuro EEG Classification\\[4pt]
+\large Predicting Genetic Alzheimer's-Risk Group from Resting-State EEG\\[2pt]
+\large Final Report --- Version 2 (consolidated)}
+\author{Dataset: OpenNeuro \texttt{ds004796} --- 79 genotyped, EEG-imaged subjects}
+\date{2026-08-15}
+
+\begin{document}
+\maketitle
+\thispagestyle{fancy}
+
+\keybox{\textbf{\color{verdictred}Headline.} Resting-state EEG did not distinguish
+the genetic Alzheimer's-risk groups in this cohort. This is a \emph{bounded}
+null, not an inconclusive one: the same features that find nothing for genotype
+successfully detect a real subject-level trait (sex) on the identical cohort and
+analysis protocol. The measurement works; the signal is not there.}
+
+\tableofcontents
+
+% =====================================================================
+\section{What was asked, what was delivered}
+
+\textbf{What was asked.} Build a classifier that predicts genetic
+Alzheimer's-risk group (derived from APOE~$\varepsilon$4 and PICALM genotype)
+from EEG, using a pitch-synchronous waveform-shape feature family (PSR/PSWT)
+compared against a conventional spectral baseline, benchmarked against a
+published result of AUC~$\approx$~0.58.
+
+\textbf{What was delivered.} A validated, reproducible, pre-registered EEG
+analysis pipeline, and the bounded null result it produced --- together with a
+quantified statement of exactly how large an effect this dataset was capable of
+detecting. No usable predictor was delivered, because none exists to deliver:
+the target is not detectable in this cohort at this sample size, and that
+conclusion is now supported by direct evidence rather than assumed from absence.
+
+% =====================================================================
+\section{The headline, in plain language}
+
+Think of the pipeline as a metal detector and the dataset as a field. Sweeping
+the field found no gold. That alone is ambiguous --- it could mean the field is
+empty, or that the detector is broken.
+
+We buried a known coin and confirmed the detector beeps. Using the identical
+features, subjects, preprocessing and statistics, the pipeline reliably detects a
+subject's sex (a trait EEG genuinely encodes) while detecting nothing at all for
+genotype group.
+
+\keybox{The field really is empty. The genotype null is a statement about
+genotype, not about the sensitivity of the measurement.}
+
+% =====================================================================
+\section{The three acts}
+
+\subsection{Act I --- the original null}
+
+The pre-registered primary analysis returned \textbf{AUC 0.474}
+(95\% CI [0.266, 0.702], permutation $p = 0.577$) on $n = 64$ subjects: no
+better than chance.
+
+The pipeline was built so that a positive result would have been believable ---
+label-blind preprocessing enforced by tests, a cross-validation and inference
+protocol frozen before any label was joined, and provenance tracking from raw
+file hash to final number.
+
+\subsection{Act II --- the near-miss, and its retraction}
+
+Reviewing the pipeline surfaced two genuine preprocessing defects: the average
+EEG reference was computed \emph{before} bad-channel interpolation (letting one
+bad channel contaminate every other channel), and the ICA component count was
+fixed rather than scaled per subject. Both were fixed on their own merits.
+
+Re-running the \emph{identical} frozen analysis on the corrected data flipped the
+verdict:
+
+\begin{table}[h]\centering
+\begin{tabular}{lcc}
+\toprule
+ & Original & After the two fixes \\
+\midrule
+AUC & 0.474 & \textbf{0.651} \\
+95\% CI & [0.266, 0.702] & [0.353, 0.764] \\
+Permutation $p$ & 0.577 & \textbf{0.041} \\
+Verdict & null & \emph{apparently} positive \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+This looked like a real finding. It exceeded the published 0.58 benchmark and
+cleared conventional significance. \textbf{It was then subjected to three
+independent checks and did not survive any of them:}
+
+\begin{itemize}[leftmargin=1.2cm]
+  \item \textbf{Stability.} Resampling the same 64 subjects put the median AUC at
+        \textbf{0.565} --- essentially on the covariates-only baseline (0.557) ---
+        with \textbf{24\%} of resamples falling below chance entirely.
+  \item \textbf{Attribution.} Isolating each preprocessing fix in a separate full
+        re-run showed \emph{neither} reproduces significance alone: reference-order
+        fix 0.583 ($p = 0.234$), ICA fix 0.602 ($p = 0.174$). Only the specific
+        combination, on this specific sample, crossed $p < 0.05$.
+  \item \textbf{Reproducibility.} The 0.651 figure regenerated exactly (0.6509,
+        $p = 0.0410$) at full precision, confirming it was computed correctly ---
+        but correctness of computation is not evidence of a real effect.
+\end{itemize}
+
+The result was retracted. It is reported here in full because concealing it would
+misrepresent what is known.
+
+\subsection{Act III --- bounding the null}
+
+One ambiguity remained. An early diagnostic had shown the PSWT feature family
+failing a basic sanity check: it could not detect a subject's \emph{sex}
+(AUC 0.465 against a pre-declared 0.65 floor), even though resting EEG normally
+encodes sex. So ``we found nothing'' might have meant ``these features discard
+all between-subject information.''
+
+Four representations already computed from the corrected data were tested against
+the sex control --- no new analysis of the genotype target was run:
+
+\begin{table}[h]\centering
+\caption{Sex control, $n=64$, full precision (1000 permutations / 2000 bootstrap).}
+\begin{tabular}{lccccc}
+\toprule
+Representation & Cols & AUC & 95\% CI & perm $p$ & Verdict \\
+\midrule
+\texttt{baseline\_rest} & 9 & \textbf{0.688} & [0.431, 0.816] & \textbf{0.019} & PASS \\
+\texttt{baseline\_rest\_msit} & 16 & \textbf{0.696} & [0.421, 0.826] & \textbf{0.007} & PASS \\
+\texttt{baseline\_all} & 23 & \textbf{0.652} & [0.373, 0.819] & \textbf{0.029} & PASS \\
+\texttt{pswt} & 18 & 0.465 & [0.272, 0.700] & 0.619 & FAIL \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Three of four decode sex significantly; only the pitch-synchronous family fails.
+The decisive comparison holds the representation fixed and changes only the
+target --- the same nine columns:
+
+\begin{table}[h]\centering
+\begin{tabular}{lccl}
+\toprule
+Target & AUC & $p$ & Outcome \\
+\midrule
+Sex (control) & \textbf{0.688} & \textbf{0.019} & signal detected \\
+Genotype (primary) & 0.506 & 0.482 & nothing \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Matched on features, cohort, preprocessing and protocol. \textbf{The null is
+bounded.}
+
+% =====================================================================
+\section{Why the retracted result is the strongest evidence of rigour here}
+
+This deserves stating plainly, because it is easy to read Act II as a setback.
+
+A team that ran the corrected preprocessing, obtained AUC 0.651 at $p = 0.041$,
+and stopped there would have reported a finding that beat the published
+benchmark. It would have been published, or acted upon, or built into a product.
+\textbf{And it would have been false} --- as the resampling and attribution
+checks subsequently demonstrated.
+
+The value of this engagement is not the answer it produced. It is that the
+process was built to kill its own most attractive result when that result failed
+validation, and did so. A pipeline that only ever confirms is worthless; this one
+demonstrably does not.
+
+% =====================================================================
+\section{The detection ceiling --- a finding about the dataset}
+
+A formal power analysis ($n = 34$ vs 30, $\alpha = 0.05$ two-sided) quantifies
+what this cohort could ever have resolved:
+
+\begin{table}[h]\centering
+\begin{tabular}{lc}
+\toprule
+Quantity & Value \\
+\midrule
+Minimum detectable AUC at 80\% power & \textbf{0.693} \\
+Minimum detectable AUC at 90\% power & 0.720 \\
+Power to detect the published benchmark (0.58) & \textbf{20\%} \\
+Power to detect AUC 0.65 & 57\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Two consequences worth carrying forward:
+
+\begin{itemize}[leftmargin=1.2cm]
+  \item \textbf{All three passing sex controls sit at or near that 0.693 floor.}
+        Sex is among the most robustly encoded subject-level traits in resting
+        EEG, and this cohort can only just resolve it. A subtler effect has no
+        headroom.
+  \item \textbf{At 20\% power against the benchmark effect}, a study of this size
+        would fail to detect that effect four times in five \emph{even if it were
+        real and exactly as large as published}.
+  \item \textbf{Age is unusable as a control in this cohort} --- it spans only
+        50--63 years, and published EEG brain-age error ($\approx$ 7 years)
+        exceeds that entire range.
+\end{itemize}
+
+These are findings \emph{about the dataset} and are useful to anyone else
+attempting this question on it.
+
+% =====================================================================
+\section{What was actually built}
+
+\keybox{\textbf{The deliverable is a validated, reproducible EEG analysis
+pipeline and the bounded null it produced --- not a predictor.}}
+
+Concretely: BIDS ingestion $\rightarrow$ label-blind preprocessing (including the
+two fixes, now permanent defaults) $\rightarrow$ PSR/PSWT and spectral feature
+extraction $\rightarrow$ a pre-registered cross-validation, permutation and
+bootstrap evaluation harness $\rightarrow$ provenance-traced reporting.
+
+Properties that make it reusable rather than disposable:
+
+\begin{itemize}[leftmargin=1.2cm]
+  \item \textbf{Label blindness enforced by tests}, not convention --- the
+        preprocessing and feature packages have no import path to the genotype
+        labels, asserted by dedicated tests.
+  \item \textbf{Pre-registration.} The analysis plan, CV scheme, model class and
+        stopping rules were frozen before any label was joined; changes are
+        append-only amendments.
+  \item \textbf{Provenance.} Every derivative records the source file hash, the
+        processing spec, a run ID and the git commit that produced it.
+  \item \textbf{289 passing tests}, including real-data regression checks.
+\end{itemize}
+
+A future, adequately powered cohort would be run through this pipeline unchanged.
+
+% =====================================================================
+\section{What this does and does not license}
+
+\textbf{This report does \emph{not} say} that APOE/PICALM status is invisible in
+EEG, or that the question is closed in general.
+
+\textbf{It says} that these representations, on this cohort, at this sample size,
+did not detect it --- and it quantifies how large an effect would have had to be
+to show up (AUC $\geq$ 0.693 for 80\% power). An effect smaller than that could
+be entirely real and would have been invisible here.
+
+The distinction matters for anyone deciding whether to pursue this line further:
+the evidence bounds the effect, it does not exclude it.
+
+% =====================================================================
+\section{What a definitive answer would require}
+
+\begin{enumerate}[leftmargin=1.2cm]
+  \item \textbf{A new, adequately powered cohort}, sized from the power analysis
+        on record rather than from availability. This is the binding constraint;
+        no methodological change substitutes for it.
+  \item \textbf{Independent replication data.} \texttt{ds004796} appears to be
+        the only public EEG dataset genotyped for APOE/PICALM at this scale, so
+        replication requires new primary collection.
+  \item \textbf{Task-state EEG}, if the published literature's claim that task
+        outperforms rest for this question is to be tested properly --- this
+        project's own task-based benchmark reproduction landed at chance and the
+        gap remains characterised but unresolved.
+\end{enumerate}
+
+% =====================================================================
+\section{Limitations and known defects}
+
+\subsection{Limitations}
+
+\begin{itemize}[leftmargin=1.2cm]
+  \item \textbf{Hard sample ceiling.} 79 subjects have both EEG and genotype; all
+        were used. 64 survive QC for the rest-based primary analysis.
+  \item \textbf{No independent replication cohort exists} (see above).
+  \item \textbf{Benchmark mismatch.} The published 0.58 came from task-state
+        (MSIT) EEG with a substantially richer feature pipeline on a different
+        cohort; it is a characterised methodological difference, not a validated
+        comparison point in either direction.
+  \item \textbf{Cohort sensitivity.} A change of only 5 subjects (a QC side
+        effect) moved the point estimate by 0.177 AUC --- inherent to this sample
+        size.
+  \item \textbf{The bound applies to representations tested.} Three independent
+        representations carry subject-level information and find no genotype
+        effect; this does not prove no representation could.
+\end{itemize}
+
+\subsection{Known defects annex}
+
+Recorded rather than concealed:
+
+\begin{itemize}[leftmargin=1.2cm]
+  \item \textbf{Report-writer overwrite defect (fixed).} Report writers used
+        fixed output paths with no overwrite protection. This silently destroyed
+        131 lines of the pre-registered analysis plan (two appended amendments)
+        during re-runs; recovered from version control. Report writes are now
+        guarded --- the frozen plan is write-once and all other reports archive
+        any prior version before overwriting.
+  \item \textbf{Hardcoded narrative (fixed).} Two report generators contained
+        prose describing a specific expected result, including a stale
+        ``verdict (frozen: NULL, AUC 0.474)'' claim that would have been emitted
+        unchanged alongside a different result. Narrative is now generated from
+        computed values or not at all, enforced by test.
+  \item \textbf{Duplicated disclaimer (fixed).} The inference module served by
+        the container carried its own copy of the output disclaimer, so
+        strengthening the primary definition would have left the shipped surface
+        unchanged. Now a single imported definition.
+  \item \textbf{Control-figure provenance (corrected).} An earlier report draft
+        described the sex control --- a \emph{failed positive} control --- as a
+        passed negative control, and did not state which preprocessing each
+        control figure came from. Corrected: 0.849 / 0.465 / 0.490 are from the
+        corrected preprocessing; 0.830 / 0.486 / 0.459 from the original.
+\end{itemize}
+
+% =====================================================================
+\section{Deliverables index}
+
+\begin{longtable}{ll}
+\toprule
+Artefact & Path \\
+\midrule
+\endhead
+This report & \texttt{reports/final\_report\_v2.tex} \\
+Bounded null (Phase 6) & \texttt{reports/phase6\_bounded\_null.md} \\
+Detection ceiling & \texttt{reports/phase6\_power\_analysis.txt} \\
+Retraction of the 0.651 result & \texttt{reports/phase5\_stage3\_validation.md} \\
+Stop decision (no further analysis) & \texttt{reports/phase7\_stop\_decision.md} \\
+Delivery decision (what ships) & \texttt{reports/phase7\_delivery\_decision.md} \\
+Pre-registered analysis plan & \texttt{reports/analysis\_plan\_frozen.md} \\
+Original Phase 3 model (frozen) & \texttt{data/derivatives/models\_phase3to4\_frozen/} \\
+Reference model artefact + card & \texttt{data/derivatives/models\_stage3/} \\
+Reproduction instructions & \texttt{RUNBOOK.md}, \texttt{INSTALL.md} \\
+\bottomrule
+\end{longtable}
+
+\vspace{0.4cm}
+\hrule
+\vspace{0.3cm}
+{\small\color{headergray}\noindent
+This project answered its question. The answer was ``no''. The reason that answer
+is worth having is that the pipeline which produced it was built so a ``yes''
+would have been believable --- pre-registered, label-blind, provenance-traced,
+and willing to discard its own best result when that result failed validation.}
+
+\end{document}

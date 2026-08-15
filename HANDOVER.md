@@ -1,7 +1,27 @@
 # Handover
 
-This project is closed as of Phase 4 (2026-08-11). Verdict: **NULL** — see
-`pearl/reports/phase4_final_report.md` for the client-facing summary.
+**This project is CLOSED as of Phase 7 (2026-08-15). Delivered state is tagged
+`v1.0-bounded-null`.**
+
+**Verdict: BOUNDED NULL.** Resting-state EEG did not distinguish the genetic
+Alzheimer's-risk groups in this cohort, and that null is bounded rather than
+inconclusive — the same features detect a control trait (sex, AUC 0.688,
+p=0.019) on the identical cohort and protocol while detecting nothing for
+genotype (AUC 0.506, p=0.48).
+
+**Start here:** `pearl/reports/final_report_v2.pdf` — the consolidated client
+report. Then `phase7_stop_decision.md` (why nothing further runs), then
+`provenance_chain.md` (where every number came from).
+
+**The deliverable is a validated, reproducible pipeline and the bounded null it
+produced — not a predictor.** No model ships as a scoring artefact; see
+`pearl/reports/phase7_delivery_decision.md`.
+
+> Historical note: this file previously declared the project closed at Phase 4
+> with an unqualified NULL. Phases 5–7 followed (a client-authorised second
+> attempt, its retraction, and the bound). The sections below are retained in
+> their original order for continuity; read the Phase 6/7 sections for the
+> current state.
 
 ## Repo map
 
@@ -146,9 +166,61 @@ results this project has produced, including one at p=0.007, have CI lower bound
 of 0.37–0.43, because the CV-bootstrap CI runs ~0.4 wide vs an analytic minimum
 of 0.257. Use the permutation test as the primary criterion instead.
 
-`phase_6.md`'s Stage B (representation rebuild) remains **specified but not run**
-— sized at ~10 person-days + 1.5–3 days compute, with a realistic best outcome of
-a further-strengthened bound rather than a positive finding.
+`phase_6.md`'s Stage B (representation rebuild) is **DECLINED — see
+`pearl/reports/phase7_stop_decision.md`** for the grounds. It is a decision, not
+unfinished work: the cohort's detection floor (MDE 0.693 at 80% power) sits at or
+above every passing control, power against the benchmark is 20%, and a covariance
+rank confound makes a *misleading positive* its most likely outcome. Sized at ~10
+person-days + 1.5–3 days compute. Do not restart it without reading that
+document.
+
+## Phase 7 (2026-08-15) — consolidation and delivery
+
+No new analysis ran. Packaging, repositioning and handover only.
+
+- **`reports/phase7_stop_decision.md`** — Stage B declined, genotype
+  investigation closed at four looks, with the numbers.
+- **`reports/phase7_delivery_decision.md`** — what ships: the Phase 5 corrected
+  *pipeline*, and **no model as a scoring artefact**. The Stage 3 model is
+  bundled as a frozen reference artefact for reproduction only.
+- **`reports/final_report_v2.{tex,pdf}`** — the consolidated client report,
+  superseding the three separate chapter reports.
+- **Overwrite defect fixed** (was the top known risk in this file): report
+  writers now route through `pearl_preproc.paths.guarded_write`. The frozen
+  analysis plan is write-once; everything else archives before overwriting.
+  This defect had already destroyed both amendments of
+  `analysis_plan_frozen.md` (131 lines) during the Phase 5 re-runs — recovered
+  from git, now structurally prevented.
+- **Disclaimer consolidated** — `inference.py` (the path the container serves)
+  had its own duplicate copy, so strengthening `delivery.py` alone would have
+  left the shipped surface unchanged. Now one imported definition, opening with
+  *"THIS MODEL WAS NOT VALIDATED AND DOES NOT DETECT ITS TARGET"*, plus
+  machine-readable `actionable: false` / `not_validated: true` on every response.
+- **`provenance_chain.md` extended** to cover Phases 5 and 6.
+- **Container** rebuilt as `pearl-models:phase7`; smoke test confirms the
+  not-validated disclaimer is present and single-sourced inside the image.
+- **French report version:** explicitly considered and **declined**.
+- Test suite at delivery: **289 passing**.
+
+### Out-of-scope register
+
+| Item | Sizing | Status |
+|---|---|---|
+| Stage B representation rebuild | ~10 person-days + 1.5–3 days compute | **Declined** — `phase7_stop_decision.md` |
+| Sternberg against the primary target | Feature extraction exists; never validated against any target | Not run — would be a 5th genotype look |
+| Option C remaining questions | Both preprocessing fixes now applied and permanent | Resolved |
+| Independent replication | Requires new primary data collection | Not possible with existing public data |
+| Publishable negative result / preprint | Separate scope | Raised, not begun — `phase_7.md` §7 |
+
+### Data retention
+
+- **Must be kept** to reproduce every delivered number: the full
+  `pearl/data/derivatives/` tree (including all `*_frozen` paths),
+  `data/labels/participants_labels.tsv`, and everything tracked in git.
+- **Already deleted, reproducible on demand:** the two ~26 GB isolation-condition
+  preprocessing trees (Phase 5 Steps 1a/1b) — regenerate from the documented
+  `config/preproc.yaml` toggles. Their derived feature CSVs are retained.
+- **Safe to delete:** `sub-52` raw EEG (retained only for smoke-testing).
 
 **Both the original null and Phase 5's result must be reported together to
 any stakeholder** — the original Phase 1-4 derivative trees, reports, and
@@ -179,16 +251,21 @@ fixed in the code itself. Fix properly before any Phase 6.
 
 Read, in this order:
 
-1. **`report.md`** — the running engineering status report for Phases 0-4.
-   Start here for "what happened and why," not the code.
-2. **`pearl/reports/phase5_final_report.md`** — if Phase 5 is relevant to
-   what you're picking up, read this before `report.md`'s Phase 3/4
-   sections, since it changes what the primary result actually is.
-3. **The relevant `phase_N.md`** for whatever you're picking up — each spec
-   encodes hard-won decisions (bug root causes, config choices, exclusion
-   rules) that aren't visible in the code alone.
-4. **`pearl/reports/provenance_chain.md`** — before trusting any number,
-   confirm you're looking at the run that actually produced it. (Note:
-   this predates Phase 5 and does not yet cover the Stage 3 model —
-   `data/derivatives/models_stage3/model_card_corrected.md` has Phase 5's
-   provenance in the meantime.)
+1. **`pearl/reports/final_report_v2.pdf`** — the consolidated client report.
+   The whole story in one document: what was asked, the three acts, the bounded
+   null, the detection ceiling, and what was actually built. Start here.
+2. **`pearl/reports/phase7_stop_decision.md`** — why no further analysis runs on
+   this cohort, with the numbers. Read before proposing any new work.
+3. **`pearl/reports/provenance_chain.md`** — before trusting any number, confirm
+   you're looking at the run that produced it. Now covers Phases 0–7 end to end.
+4. **`pearl/reports/phase7_delivery_decision.md`** — what ships and what
+   deliberately does not.
+5. **The relevant `phase_N.md`** for anything you're picking up — each spec
+   encodes decisions (bug root causes, config choices, exclusion rules) not
+   visible in the code alone.
+6. **`report.md`** — the running engineering status report for Phases 0–4, for
+   historical detail on how the pipeline was built.
+
+**Before proposing new analysis on this cohort:** read item 2. The genotype
+target has been examined four times; the detection ceiling and the reasons for
+stopping are on record. A fifth look requires pre-registration.
