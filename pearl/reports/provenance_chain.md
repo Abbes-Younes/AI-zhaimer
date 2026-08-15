@@ -130,3 +130,20 @@ lines)** during the Phase 5 isolation re-runs. Recovered from git; the frozen
 plan is now write-once and all other report writers archive any prior version
 before overwriting (`pearl_preproc.paths.guarded_write`). Amendment history in
 the chain above is therefore intact and verified against commit `4bb18cc`.
+
+### Clean-clone reproducibility, re-verified 2026-08-15 (Phase 7)
+
+Re-run for real against the **pushed remote**, not a local copy: fresh
+`git clone` of `https://github.com/Abbes-Younes/AI-zhaimer.git`, fresh venv,
+`pip install -e ".[dev]"` from the pinned `pyproject.toml`, then `pytest`.
+
+- **Install: clean (exit 0).** Every pinned version resolved exactly, including
+  `PyWavelets==1.9.0`. A drift observed in the *local development* environment
+  (1.8.0) does **not** exist in a clean install -- the pins are faithful.
+- **Tests: 280 passed, 4 failed.** All four failures are `FileNotFoundError` on
+  `data/derivatives/features/features_pswt.csv` and siblings -- the gitignored
+  derivative trees. This is the same expected outcome recorded for Phase 4, and
+  is not a regression: those tests read real derivatives that are deliberately
+  not tracked in git. With the derivative tree present, the full suite passes
+  (289/289 locally).
+- No manual step beyond the README was required.
