@@ -174,3 +174,46 @@ def sha256_file(path: Path) -> str:
 def ensure_dirs() -> None:
     for d in [RAW_DIR, RAW_META_DIR, PREPROC_DIR, QC_DIR, REPORTS_DIR, LOGS_DIR]:
         d.mkdir(parents=True, exist_ok=True)
+
+
+# ---------------------------------------------------------------------------
+# Guarded report writing (phase_7.md §3)
+# ---------------------------------------------------------------------------
+
+class ReportOverwriteError(RuntimeError):
+    """Raised when a report write would destroy an existing deliverable.
+
+    Report writers in this project historically wrote to fixed paths shared
+    with the original Phase 1-4 artifacts, so a re-run silently overwrote
+    delivered reports in place. Every Phase 5 stage worked around this by
+    archiving and restoring by hand. This makes the refusal automatic.
+    """
+
+
+def guarded_write(path: Path, content: str, *, allow_overwrite: bool = False,
+                   encoding: str = "utf-8") -> Path:
+    """Write `content` to `path`, refusing to silently destroy existing output.
+
+    - New file: written normally.
+    - Existing file, `allow_overwrite=False` (default): raises
+      `ReportOverwriteError`; the existing file is left untouched.
+    - Existing file, `allow_overwrite=True`: the prior version is archived
+      alongside as `<name>.bak-<UTC timestamp>` *before* the new content is
+      written, so an intentional overwrite still cannot lose data.
+
+    Parent directories are created as needed, which is what makes run-scoped
+    output directories (`reports/<run_id>/...`) cheap to adopt.
+    """
+    path = Path(path)
+    if path.exists():
+        if not allow_overwrite:
+            raise ReportOverwriteError(
+                f"refusing to overwrite existing report: {path}\n"
+                "Pass allow_overwrite=True (the prior version will be archived "
+                "alongside it), or write to a run-scoped path instead.")
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+        backup = path.with_name(f"{path.name}.bak-{stamp}")
+        path.replace(backup)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding=encoding)
+    return path

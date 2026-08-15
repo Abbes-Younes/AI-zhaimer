@@ -13,6 +13,7 @@ from pathlib import Path
 import yaml
 
 from .paths import (
+    guarded_write,
     QC_DIR,
     REPORTS_DIR,
     CONFIG_DIR,
@@ -224,7 +225,7 @@ consumed as given by Phase 2. Verdicts use fixed thresholds from
 <code>config/preproc.yaml</code>.</p>
 </body></html>"""
     out = REPORTS_DIR / "phase1_qc.html"
-    out.write_text(html, encoding="utf-8")
+    guarded_write(out, html, allow_overwrite=True)
     return {
         "html_path": str(out),
         "verdict": verdict,

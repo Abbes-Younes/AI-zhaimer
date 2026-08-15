@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import pandas as pd
+from pearl_preproc.paths import guarded_write
 
 _VERDICT_TEXT = {
     "proceed": "PROCEED — preprocessing carries no detectable group information.",
@@ -82,5 +83,5 @@ def run() -> dict:
     gate_result = qc_only_auc(rest_qc, binary_map, CONTINUOUS_METRICS)
 
     text = render(full_assoc, surviving_assoc, exclusion_assoc, gate_result)
-    (REPORTS_DIR / "phase2_confound_gate.md").write_text(text, encoding="utf-8")
+    guarded_write(REPORTS_DIR / "phase2_confound_gate.md", text, allow_overwrite=True)
     return gate_result

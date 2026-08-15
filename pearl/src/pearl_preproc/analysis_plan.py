@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .paths import REPORTS_DIR, ensure_dirs
+from .paths import REPORTS_DIR, ensure_dirs, guarded_write
 
 _CONTENT = """# Phase 2 Analysis Plan (FROZEN)
 
@@ -84,8 +84,24 @@ signed off by the client.
 """
 
 
-def write_analysis_plan() -> Path:
+def write_analysis_plan(*, allow_overwrite: bool = False) -> Path:
+    """Write the frozen analysis plan — **write-once by design**.
+
+    This document is pre-registered: amendments are appended to it by hand as
+    numbered `Amendment N` blocks, and the original text above them must stay
+    byte-identical. Regenerating it from `_CONTENT` therefore *destroys*
+    every appended amendment.
+
+    That is not hypothetical — an unconditional overwrite here silently wiped
+    Amendments 1 and 2 (131 lines) during the Phase 5 isolation re-runs, and
+    they had to be recovered from git (phase_7.md §3).
+
+    So: if the plan already exists it is left untouched and its path returned.
+    Only an explicit `allow_overwrite=True` will replace it, and even then the
+    prior version is archived alongside rather than discarded.
+    """
     ensure_dirs()
     out = REPORTS_DIR / "analysis_plan_frozen.md"
-    out.write_text(_CONTENT, encoding="utf-8")
-    return out
+    if out.exists() and not allow_overwrite:
+        return out
+    return guarded_write(out, _CONTENT, allow_overwrite=allow_overwrite)
