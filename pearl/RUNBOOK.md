@@ -1,6 +1,27 @@
 # Runbook
 
-## Scoring a subject
+> ## ⚠ Read this before running anything below
+>
+> **This pipeline does not predict genetic Alzheimer's-risk group, and the
+> commands below are not a scoring service.** The model does not detect its
+> target: the only positive result it ever produced (AUC 0.651) was retracted
+> after failing validation, and the null was subsequently shown to be real
+> rather than a measurement artifact — the same features detect a control trait
+> (sex, AUC 0.688, p=0.019) on this cohort while detecting nothing for the
+> target (AUC 0.506, p=0.48).
+>
+> The commands exist so the **reported analysis can be reproduced and audited**
+> on a subject. Every response carries `"actionable": false` and a
+> not-validated disclaimer. Do not present the returned probability as a risk
+> assessment, screening result, or diagnosis.
+>
+> See `reports/phase7_delivery_decision.md` and `reports/phase6_bounded_null.md`.
+
+## Reproducing the reported analysis on a subject
+
+*(The command is named `score` for backwards compatibility; what it does is
+re-run the delivered pipeline end-to-end on one subject and emit the model's
+output together with its provenance and not-validated flags.)*
 
 **Bare metal:**
 

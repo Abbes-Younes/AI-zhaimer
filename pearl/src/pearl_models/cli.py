@@ -13,7 +13,12 @@ def main() -> None:
     run_parser = sub.add_parser("run", help="run the full Phase 3 pipeline")
     run_parser.add_argument("--run-id", default=None)
 
-    score_parser = sub.add_parser("score", help="score one subject's BIDS EEG through the shipped model")
+    score_parser = sub.add_parser(
+        "score",
+        help=("reproduce the reported analysis on one subject's BIDS EEG. NOT a "
+              "prediction: the model was not validated and does not detect its "
+              "target -- output carries no demonstrated predictive meaning "
+              "(see reports/phase7_delivery_decision.md)"))
     score_parser.add_argument("--subject", required=True)
     score_parser.add_argument("--bids-dir", required=True)
     score_parser.add_argument("--model-dir", default=None,

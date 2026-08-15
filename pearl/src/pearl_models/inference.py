@@ -12,8 +12,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-_DISCLAIMER = ("research pipeline output — a research score, not a risk assessment, "
-               "screening result, or diagnosis")
+# Single source of truth, imported rather than duplicated: this module is the
+# path the container and API actually serve, and it previously carried its own
+# copy of the disclaimer -- so strengthening the one in delivery.py silently
+# left the shipped surface on the old, weaker wording (phase_7.md §1).
+from pearl_models.delivery import _DISCLAIMER  # noqa: E402
 
 
 def _preprocess_subject(bids_dir: str | Path, subject: str, task: str = "rest") -> dict:
@@ -57,10 +60,12 @@ def score_bids_subject(bids_dir: str | Path, subject: str, model_dir: str | Path
 
     ood, reason = is_out_of_distribution(qc_row, provenance["training_qc_ranges"])
     if ood:
-        return {"status": "cannot_score", "reason": reason, "disclaimer": _DISCLAIMER,
+        return {"status": "cannot_score", "reason": reason, "actionable": False,
+                "not_validated": True, "disclaimer": _DISCLAIMER,
                 "run_id": provenance.get("run_id"), "git_sha": provenance.get("git_sha")}
 
     feature_row = _extract_features(subject, qc_row, provenance["feature_columns"])
     proba = pipeline.predict_proba(feature_row)[:, 1][0]
-    return {"status": "scored", "probability": float(proba), "disclaimer": _DISCLAIMER,
+    return {"status": "scored", "probability": float(proba), "actionable": False,
+            "not_validated": True, "disclaimer": _DISCLAIMER,
             "run_id": provenance.get("run_id"), "git_sha": provenance.get("git_sha")}

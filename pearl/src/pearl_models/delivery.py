@@ -14,8 +14,17 @@ from sklearn.model_selection import GridSearchCV, StratifiedGroupKFold
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-_DISCLAIMER = ("research pipeline output — a research score, not a risk assessment, "
-               "screening result, or diagnosis")
+_DISCLAIMER = (
+    "THIS MODEL WAS NOT VALIDATED AND DOES NOT DETECT ITS TARGET. This number "
+    "carries no demonstrated predictive meaning and must not be used as a risk "
+    "assessment, screening result, or diagnosis. The only positive result this "
+    "pipeline ever produced (AUC 0.651) was retracted after failing resampling "
+    "and attribution checks, and the null was subsequently shown to be real "
+    "rather than a measurement artifact: the same features detect a control "
+    "trait (sex, AUC 0.688, p=0.019) on this cohort while detecting nothing for "
+    "the target (AUC 0.506, p=0.48). The artifact is a reproducibility "
+    "reference, not a predictor. See reports/phase6_bounded_null.md and "
+    "reports/phase7_delivery_decision.md.")
 
 
 def train_final_model(cfg: dict, primary_result: dict) -> tuple[Pipeline, dict]:
@@ -99,7 +108,11 @@ def score_subject(pipeline, qc_row: dict, feature_row, training_qc_ranges: dict)
         return {"status": "cannot_score", "reason": reason}
 
     proba = pipeline.predict_proba(feature_row)[:, 1][0]
-    return {"status": "scored", "probability": float(proba), "disclaimer": _DISCLAIMER}
+    # `actionable` is machine-readable on purpose: a consumer that ignores the
+    # prose disclaimer should still be unable to claim it wasn't told
+    # (phase_7.md §2 — no code path may present a score as actionable).
+    return {"status": "scored", "probability": float(proba), "actionable": False,
+            "not_validated": True, "disclaimer": _DISCLAIMER}
 
 
 _REQUIRED_MODEL_CARD_FIELDS = ["run_id", "git_sha", "cv_estimated_auc", "cv_estimated_ci",
@@ -117,15 +130,18 @@ def write_model_card(provenance: dict, out_path: Path) -> None:
     lines = [
         "# Model Card — PEARL-Neuro PSWT risk_vs_none classifier",
         "",
-        f"**{_DISCLAIMER.upper()}.**",
+        f"> **{_DISCLAIMER}**",
         "",
         "## Intended use",
         "",
-        "Research artifact only. This model does NOT demonstrate a usable predictive "
-        "relationship between PSWT waveform-shape EEG features and genetic Alzheimer's-risk "
-        f"group: its cross-validated performance (AUC {auc:.3f}) does not exceed chance or "
-        "this project's nuisance-only reference line. It is shipped per project delivery "
-        "requirements (phase_3.md §6), not because it is fit for prediction.",
+        "**Reference implementation and reproducibility artefact — not a scoring tool.**",
+        "",
+        "This model is shipped so that the numbers in the delivered reports can be "
+        "regenerated and audited. It is not shipped because it predicts anything: it "
+        f"does not detect its target (cross-validated AUC {auc:.3f}). Its value is that "
+        "the pipeline which produced it is pre-registered, label-blind and "
+        "provenance-traced — so the negative result it produced is trustworthy. "
+        "See `reports/phase7_delivery_decision.md`.",
         "",
         "## Out of scope",
         "",

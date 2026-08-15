@@ -22,7 +22,8 @@ def test_score_bids_subject_includes_disclaimer_and_status():
         )
         result = score_bids_subject("fake_bids_dir", "sub-01", "fake_model_path")
     assert "disclaimer" in result
-    assert "research" in result["disclaimer"].lower()
+    assert "not validated" in result["disclaimer"].lower()
+    assert result["actionable"] is False
     assert result["status"] in {"scored", "cannot_score"}
 
 
