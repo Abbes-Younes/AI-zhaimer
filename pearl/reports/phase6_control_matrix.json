@@ -1,0 +1,68 @@
+{
+  "run_id": "20260815T210714Z-4bb18cc",
+  "git_sha": "4bb18cc",
+  "representations": {
+    "baseline_rest": {
+      "n_features": 9,
+      "n_subjects_used": 64,
+      "auc": 0.6881372549019609,
+      "ci": [
+        0.43137254901960786,
+        0.8157107843137253
+      ],
+      "p_value": 0.01898101898101898,
+      "verdict": "pass"
+    },
+    "baseline_rest_msit": {
+      "n_features": 16,
+      "n_subjects_used": 64,
+      "auc": 0.6959803921568628,
+      "ci": [
+        0.4205882352941177,
+        0.8264950980392156
+      ],
+      "p_value": 0.006993006993006993,
+      "verdict": "pass"
+    },
+    "baseline_all": {
+      "n_features": 23,
+      "n_subjects_used": 64,
+      "auc": 0.652450980392157,
+      "ci": [
+        0.37254901960784315,
+        0.8186274509803921
+      ],
+      "p_value": 0.028971028971028972,
+      "verdict": "pass"
+    },
+    "pswt": {
+      "n_features": 18,
+      "n_subjects_used": 64,
+      "auc": 0.46450980392156865,
+      "ci": [
+        0.2715441176470588,
+        0.7000490196078429
+      ],
+      "p_value": 0.6193806193806194,
+      "verdict": "fail"
+    }
+  },
+  "age_descriptive": {
+    "n": 64,
+    "min": 50.0,
+    "max": 63.0,
+    "median": 55.0,
+    "range_years": 13.0
+  },
+  "genotype_baseline_rest_reference": {
+    "auc": 0.506,
+    "p_value": 0.4815,
+    "source": "reports/phase5_stage3_results.md Section 5 (already published, not re-run)"
+  },
+  "phase4_reference": {
+    "rung1_baseline_rest_msit_auc": 0.693,
+    "rung1_p": 0.013,
+    "pswt_sex_auc": 0.465,
+    "source": "reports/phase4_control_diagnostic.md (old, bug-present preprocessing)"
+  }
+}
