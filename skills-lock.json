@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "statistical-power": {
+      "source": "k-dense-ai/scientific-agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/statistical-power/SKILL.md",
+      "computedHash": "9868273d7bc3dc623a301cdea81f3e5828687db2de87bc67ebe3016a69b9bd77"
+    }
+  }
+}
